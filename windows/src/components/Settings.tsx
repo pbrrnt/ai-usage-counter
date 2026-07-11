@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { useStore } from '../store'
 import { ALL_PROVIDERS, PROVIDER_LABELS, PROVIDER_ICONS } from '../types'
 import { splitEmojis } from '../utils'
@@ -50,9 +50,22 @@ export function Settings() {
   const setRefreshInterval = useStore(s => s.setRefreshInterval)
   const petIcon = useStore(s => s.petIcon)
   const setPetIcon = useStore(s => s.setPetIcon)
+  const hoverExpand = useStore(s => s.hoverExpand)
+  const setHoverExpand = useStore(s => s.setHoverExpand)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowSettings(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [setShowSettings])
 
   return (
-    <div className="settings-overlay">
+    <div
+      className="settings-overlay"
+      onClick={e => { if (e.target === e.currentTarget) setShowSettings(false) }}
+    >
       <div className="settings-panel">
         <div className="settings-header">
           <span className="settings-title">Settings</span>
@@ -61,7 +74,7 @@ export function Settings() {
 
         <div className="divider" />
 
-        <div className="settings-body" style={{ maxHeight: 400, overflowY: 'auto' }}>
+        <div className="settings-body">
           {/* Visible Agents */}
           <Section id="agents" title="👁 Visible Agents">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -144,6 +157,22 @@ export function Settings() {
                     type="checkbox"
                     checked={autoDim}
                     onChange={e => setAutoDim(e.target.checked)}
+                  />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+
+              {/* Hover to expand */}
+              <div className="setting-row">
+                <div>
+                  <div className="setting-label">Hover to Expand</div>
+                  <div className="setting-sub">Collapse to a pill when idle · expand on hover, like Windows widgets</div>
+                </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={hoverExpand}
+                    onChange={e => setHoverExpand(e.target.checked)}
                   />
                   <span className="toggle-track" />
                 </label>

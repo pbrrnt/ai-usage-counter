@@ -93,6 +93,7 @@ interface Store extends AppState {
   petIcon: string
   expandDirection: ExpandSetting
   autoResolved: ExpandDir
+  hoverExpand: boolean
 
   refreshAll: () => Promise<void>
   loadProviderAuthStates: () => Promise<void>
@@ -101,6 +102,7 @@ interface Store extends AppState {
   setMenubarSource: (id: ProviderID) => void
   setOpacity: (v: number) => void
   setAutoDim: (v: boolean) => void
+  setHoverExpand: (v: boolean) => void
   setAlwaysOnTop: (v: boolean) => void
   setShowSettings: (v: boolean) => void
   setCompact: (v: boolean) => Promise<void>
@@ -170,8 +172,9 @@ export const useStore = create<Store>((set, get) => ({
     return v > 0 ? v : 0.4
   })(),
   autoDim: localStorage.getItem('autoDim') !== 'false',
-  alwaysOnTop: true,
+  alwaysOnTop: localStorage.getItem('alwaysOnTop') !== 'false',
   compact: false,
+  hoverExpand: localStorage.getItem('hoverExpand') === 'true',
   showSettings: false,
   visibleProviders: (() => {
     try {
@@ -395,8 +398,14 @@ export const useStore = create<Store>((set, get) => ({
     localStorage.setItem('autoDim', String(v))
   },
 
+  setHoverExpand: v => {
+    set({ hoverExpand: v })
+    localStorage.setItem('hoverExpand', String(v))
+  },
+
   setAlwaysOnTop: async v => {
     set({ alwaysOnTop: v })
+    localStorage.setItem('alwaysOnTop', String(v))
     try { await getCurrentWindow().setAlwaysOnTop(v) } catch {}
   },
 
@@ -559,6 +568,26 @@ export const useStore = create<Store>((set, get) => ({
         const next = !useStore.getState().compact
         useStore.getState().setCompact(next)
         localStorage.setItem('compact', String(next))
+      })
+
+      // Hover-to-expand ("News and interests" style): collapse to the pill a
+      // short beat after the cursor leaves the window, expand again on hover.
+      // Bound to <html> rather than a component — Settings renders as a sibling
+      // overlay, not a child of .overlay, so this must be tracked above both.
+      let hoverLeaveTimer: ReturnType<typeof setTimeout> | null = null
+      const docRoot = document.documentElement
+      docRoot.addEventListener('mouseleave', () => {
+        if (!get().hoverExpand) return
+        if (hoverLeaveTimer) clearTimeout(hoverLeaveTimer)
+        hoverLeaveTimer = setTimeout(() => {
+          const s = get()
+          if (s.hoverExpand && !s.compact && !s.showSettings) s.setCompact(true)
+        }, 900)
+      })
+      docRoot.addEventListener('mouseenter', () => {
+        if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null }
+        const s = get()
+        if (s.hoverExpand && s.compact) s.setCompact(false)
       })
 
       // Keep the overlay above the taskbar and other windows. Windows can drop
