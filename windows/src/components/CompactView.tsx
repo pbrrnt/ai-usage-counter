@@ -41,6 +41,7 @@ export function CompactView() {
   const setMenubarSource = useStore(s => s.setMenubarSource)
   const setCompact = useStore(s => s.setCompact)
   const hideWindow = useStore(s => s.hideWindow)
+  const refreshAll = useStore(s => s.refreshAll)
   const expandDirection = useStore(s => s.expandDirection)
   const autoResolved = useStore(s => s.autoResolved)
   const isAutoDir = expandDirection === 'auto'
@@ -82,6 +83,7 @@ export function CompactView() {
       </span>
       <div className="spacer" />
       {isLoading && <span className="spinner" style={{ width: 8, height: 8 }} />}
+      <button className="icon-btn" onClick={refreshAll} title="Refresh" style={{ fontSize: 11 }}>↻</button>
       <button
         className="icon-btn"
         onClick={() => setCompact(false)}

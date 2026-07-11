@@ -4,7 +4,7 @@ import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow, PhysicalPosition, LogicalSize, currentMonitor } from '@tauri-apps/api/window'
 import type { ProviderID, ProviderState, AppState, AntigravityUsage, ProviderUsageResult, ExpandDir, ExpandSetting } from './types'
 import { ALL_PROVIDERS } from './types'
-import { formatCountdown, formatResetLabel } from './utils'
+import { formatCountdown, formatResetLabel, formatClockTime } from './utils'
 
 const COMPACT_HEIGHT = 44
 
@@ -145,7 +145,7 @@ function mapProviderUsage(u: ProviderUsageResult): ProviderState {
       fraction: pctToFraction(u.session_pct),
       usedText: `${u.session_pct.toFixed(1)}%`,
       limitText: '100%',
-      resetLabel: u.session_reset_secs != null ? formatCountdown(u.session_reset_secs) : '',
+      resetLabel: u.session_reset_secs != null ? `Resets ${formatClockTime(u.session_reset_secs)} (${formatCountdown(u.session_reset_secs)})` : '',
       isActive: true,
     } : null,
     weeklyBar: u.weekly_pct != null ? {
