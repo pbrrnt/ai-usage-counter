@@ -28,3 +28,13 @@ pub struct QuotaLaneRaw {
     pub pct: f64,
     pub reset_text: Option<String>,
 }
+
+// Tray icon bounds (physical px), sent to the frontend so it can position the
+// hover flyout right next to the icon.
+#[derive(Debug, Serialize, Clone, Default)]
+pub struct TrayRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}

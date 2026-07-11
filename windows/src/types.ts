@@ -5,6 +5,11 @@ export type AuthState = 'signed_in' | 'signed_out' | 'expired'
 export type ExpandDir = 'down' | 'up' | 'left' | 'right'
 // User-facing setting: a fixed direction, or 'auto' (picked from screen position).
 export type ExpandSetting = ExpandDir | 'auto'
+
+// How the overlay auto-shows/hides on hover when idle:
+// 'off' — manual only; 'pill' — collapses to a floating pill, expands on hover;
+// 'tray' — hidden entirely, flies out from the system tray icon on hover.
+export type HoverMode = 'off' | 'pill' | 'tray'
 export const EXPAND_DIR_ARROW: Record<ExpandDir, string> = {
   down: '↓', up: '↑', left: '←', right: '→',
 }

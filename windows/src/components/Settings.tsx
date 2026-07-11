@@ -50,8 +50,8 @@ export function Settings() {
   const setRefreshInterval = useStore(s => s.setRefreshInterval)
   const petIcon = useStore(s => s.petIcon)
   const setPetIcon = useStore(s => s.setPetIcon)
-  const hoverExpand = useStore(s => s.hoverExpand)
-  const setHoverExpand = useStore(s => s.setHoverExpand)
+  const hoverMode = useStore(s => s.hoverMode)
+  const setHoverMode = useStore(s => s.setHoverMode)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -162,20 +162,25 @@ export function Settings() {
                 </label>
               </div>
 
-              {/* Hover to expand */}
+              {/* Hover behavior */}
               <div className="setting-row">
                 <div>
-                  <div className="setting-label">Hover to Expand</div>
-                  <div className="setting-sub">Collapse to a pill when idle · expand on hover, like Windows widgets</div>
+                  <div className="setting-label">Hover Behavior</div>
+                  <div className="setting-sub">
+                    {hoverMode === 'off' && 'Manual only — use the collapse button or tray click'}
+                    {hoverMode === 'pill' && 'Collapse to a floating pill when idle · expand on hover'}
+                    {hoverMode === 'tray' && 'Hide entirely · fly out from the tray icon on hover'}
+                  </div>
                 </div>
-                <label className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={hoverExpand}
-                    onChange={e => setHoverExpand(e.target.checked)}
-                  />
-                  <span className="toggle-track" />
-                </label>
+                <select
+                  value={hoverMode}
+                  onChange={e => setHoverMode(e.target.value as typeof hoverMode)}
+                  style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}
+                >
+                  <option value="off">Off</option>
+                  <option value="pill">Floating pill</option>
+                  <option value="tray">Tray icon</option>
+                </select>
               </div>
 
             </div>

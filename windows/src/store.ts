@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow, PhysicalPosition, LogicalSize, currentMonitor } from '@tauri-apps/api/window'
-import type { ProviderID, ProviderState, AppState, AntigravityUsage, ProviderUsageResult, ExpandDir, ExpandSetting } from './types'
+import type { ProviderID, ProviderState, AppState, AntigravityUsage, ProviderUsageResult, ExpandDir, ExpandSetting, HoverMode } from './types'
 import { ALL_PROVIDERS } from './types'
 import { formatCountdown, formatResetLabel, formatClockTime } from './utils'
 
@@ -93,7 +93,7 @@ interface Store extends AppState {
   petIcon: string
   expandDirection: ExpandSetting
   autoResolved: ExpandDir
-  hoverExpand: boolean
+  hoverMode: HoverMode
 
   refreshAll: () => Promise<void>
   loadProviderAuthStates: () => Promise<void>
@@ -102,7 +102,7 @@ interface Store extends AppState {
   setMenubarSource: (id: ProviderID) => void
   setOpacity: (v: number) => void
   setAutoDim: (v: boolean) => void
-  setHoverExpand: (v: boolean) => void
+  setHoverMode: (v: HoverMode) => void
   setAlwaysOnTop: (v: boolean) => void
   setShowSettings: (v: boolean) => void
   setCompact: (v: boolean) => Promise<void>
@@ -174,7 +174,7 @@ export const useStore = create<Store>((set, get) => ({
   autoDim: localStorage.getItem('autoDim') !== 'false',
   alwaysOnTop: localStorage.getItem('alwaysOnTop') !== 'false',
   compact: false,
-  hoverExpand: localStorage.getItem('hoverExpand') === 'true',
+  hoverMode: (localStorage.getItem('hoverMode') as HoverMode) || 'off',
   showSettings: false,
   visibleProviders: (() => {
     try {
@@ -398,9 +398,9 @@ export const useStore = create<Store>((set, get) => ({
     localStorage.setItem('autoDim', String(v))
   },
 
-  setHoverExpand: v => {
-    set({ hoverExpand: v })
-    localStorage.setItem('hoverExpand', String(v))
+  setHoverMode: v => {
+    set({ hoverMode: v })
+    localStorage.setItem('hoverMode', v)
   },
 
   setAlwaysOnTop: async v => {
@@ -570,24 +570,71 @@ export const useStore = create<Store>((set, get) => ({
         localStorage.setItem('compact', String(next))
       })
 
-      // Hover-to-expand ("News and interests" style): collapse to the pill a
-      // short beat after the cursor leaves the window, expand again on hover.
+      // Hover modes (mutually exclusive, picked via hoverMode):
+      // 'pill' — collapse to the floating pill a short beat after the cursor
+      //          leaves the window, expand again on hover.
+      // 'tray' — hide entirely; fly out from the system tray icon on hover,
+      //          like the Windows News and Interests widget.
       // Bound to <html> rather than a component — Settings renders as a sibling
       // overlay, not a child of .overlay, so this must be tracked above both.
       let hoverLeaveTimer: ReturnType<typeof setTimeout> | null = null
+      let trayHideTimer: ReturnType<typeof setTimeout> | null = null
       const docRoot = document.documentElement
+
       docRoot.addEventListener('mouseleave', () => {
-        if (!get().hoverExpand) return
-        if (hoverLeaveTimer) clearTimeout(hoverLeaveTimer)
-        hoverLeaveTimer = setTimeout(() => {
-          const s = get()
-          if (s.hoverExpand && !s.compact && !s.showSettings) s.setCompact(true)
-        }, 900)
+        const mode = get().hoverMode
+        if (mode === 'pill') {
+          if (hoverLeaveTimer) clearTimeout(hoverLeaveTimer)
+          hoverLeaveTimer = setTimeout(() => {
+            const s = get()
+            if (s.hoverMode === 'pill' && !s.compact && !s.showSettings) s.setCompact(true)
+          }, 900)
+        } else if (mode === 'tray') {
+          if (trayHideTimer) clearTimeout(trayHideTimer)
+          trayHideTimer = setTimeout(() => {
+            const s = get()
+            if (s.hoverMode === 'tray' && !s.showSettings) s.hideWindow()
+          }, 400)
+        }
       })
       docRoot.addEventListener('mouseenter', () => {
         if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null }
+        if (trayHideTimer) { clearTimeout(trayHideTimer); trayHideTimer = null }
         const s = get()
-        if (s.hoverExpand && s.compact) s.setCompact(false)
+        if (s.hoverMode === 'pill' && s.compact) s.setCompact(false)
+      })
+
+      // Tray icon hover (mode: 'tray'): Rust emits these on every Enter/Leave
+      // regardless of the setting — ignore them here unless 'tray' is active.
+      await listen<{ x: number; y: number; width: number; height: number }>(
+        'tray-hover-enter',
+        async (event) => {
+          if (get().hoverMode !== 'tray') return
+          if (trayHideTimer) { clearTimeout(trayHideTimer); trayHideTimer = null }
+          if (get().compact) await get().setCompact(false)
+          try {
+            const size = await win.outerSize()
+            const margin = 8
+            let x = Math.round(event.payload.x + event.payload.width - size.width)
+            let y = Math.round(event.payload.y - size.height - margin)
+            const mon = await currentMonitor()
+            if (mon) {
+              const np = clampToMonitor(x, y, size.width, size.height, mon)
+              x = np.x; y = np.y
+            }
+            await win.setPosition(new PhysicalPosition(x, y))
+          } catch {}
+          await win.show()
+          await win.setFocus()
+        },
+      )
+      await listen('tray-hover-leave', () => {
+        if (get().hoverMode !== 'tray') return
+        if (trayHideTimer) clearTimeout(trayHideTimer)
+        trayHideTimer = setTimeout(() => {
+          const s = get()
+          if (s.hoverMode === 'tray' && !s.showSettings) s.hideWindow()
+        }, 400)
       })
 
       // Keep the overlay above the taskbar and other windows. Windows can drop
