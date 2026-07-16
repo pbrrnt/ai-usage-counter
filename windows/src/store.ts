@@ -5,6 +5,7 @@ import { getCurrentWindow, PhysicalPosition, LogicalSize, currentMonitor } from 
 import type { ProviderID, ProviderState, AppState, AntigravityUsage, ProviderUsageResult, ExpandDir, ExpandSetting, HoverMode } from './types'
 import { ALL_PROVIDERS } from './types'
 import { formatCountdown, formatResetLabel, formatClockTime } from './utils'
+import { checkProviderResets } from './resetNotify'
 
 const COMPACT_HEIGHT = 44
 
@@ -235,6 +236,7 @@ export const useStore = create<Store>((set, get) => ({
         const result = await invoke<ProviderUsageResult | null>('get_claude_usage')
         if (result) {
           set(state => ({ providers: { ...state.providers, claude: mapProviderUsage(result) } }))
+          checkProviderResets('claude', result)
         }
       } catch (e) {
         console.error('Claude usage error:', e)
@@ -249,6 +251,7 @@ export const useStore = create<Store>((set, get) => ({
         if (result) {
           const mapped = mapProviderUsage(result)
           set(state => ({ providers: { ...state.providers, codex: mapped } }))
+          checkProviderResets('codex', result)
         }
       } catch (e) {
         console.error('Codex usage error:', e)
@@ -263,6 +266,7 @@ export const useStore = create<Store>((set, get) => ({
         if (result) {
           const mapped = mapProviderUsage(result)
           set(state => ({ providers: { ...state.providers, gemini: mapped } }))
+          checkProviderResets('gemini', result)
         }
       } catch (e) {
         console.error('Gemini usage error:', e)

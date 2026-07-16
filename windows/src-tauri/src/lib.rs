@@ -4,6 +4,7 @@ mod codex_provider;
 mod gemini_provider;
 mod models;
 mod provider_worker;
+mod telegram;
 mod tray;
 
 use models::{AntigravityUsageRaw, ProviderUsageResult};
@@ -370,6 +371,13 @@ fn show_first_launch_tip(app: AppHandle) {
         .show();
 }
 
+// ── Telegram notifications ────────────────────────────────────────────────────
+
+#[tauri::command]
+async fn send_telegram_message(app: AppHandle, text: String) -> Result<(), String> {
+    telegram::post_message(&app, &text).await
+}
+
 // ── App setup ─────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -423,6 +431,7 @@ pub fn run() {
         )
         .setup(move |app| {
             tray::setup(app)?;
+            telegram::ensure_config_template(app.handle());
 
             if let Some(win) = app.get_webview_window("main") {
                 if let Ok(data_dir) = app.path().app_data_dir() {
@@ -457,6 +466,7 @@ pub fn run() {
             get_codex_usage,
             get_gemini_usage,
             show_first_launch_tip,
+            send_telegram_message,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
