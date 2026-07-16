@@ -1,3 +1,4 @@
+use crate::models::TrayRect;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
@@ -39,13 +40,12 @@ pub fn setup<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
             "quit" => app.exit(0),
             _ => {}
         })
-        .on_tray_icon_event(|tray, event| {
+        .on_tray_icon_event(|tray, event| match event {
             // Left-click tray icon → show/hide
-            if let TrayIconEvent::Click {
+            TrayIconEvent::Click {
                 button: MouseButton::Left,
                 ..
-            } = event
-            {
+            } => {
                 let app = tray.app_handle();
                 if let Some(win) = app.get_webview_window("main") {
                     let visible = win.is_visible().unwrap_or(false);
@@ -57,6 +57,25 @@ pub fn setup<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
                     }
                 }
             }
+            // Cursor entered/moved over the icon region → let the frontend
+            // decide whether to show the flyout (only in tray-hover mode).
+            TrayIconEvent::Enter { rect, .. } | TrayIconEvent::Move { rect, .. } => {
+                let app = tray.app_handle();
+                let (x, y) = match rect.position {
+                    tauri::Position::Physical(p) => (p.x as f64, p.y as f64),
+                    tauri::Position::Logical(p) => (p.x, p.y),
+                };
+                let (width, height) = match rect.size {
+                    tauri::Size::Physical(s) => (s.width as f64, s.height as f64),
+                    tauri::Size::Logical(s) => (s.width, s.height),
+                };
+                let _ = app.emit("tray-hover-enter", TrayRect { x, y, width, height });
+            }
+            TrayIconEvent::Leave { .. } => {
+                let app = tray.app_handle();
+                let _ = app.emit("tray-hover-leave", ());
+            }
+            _ => {}
         })
         .build(app)?;
 

@@ -32,12 +32,22 @@ export function formatTokens(n: number): string {
 }
 
 export function formatCountdown(secs: number): string {
-  const h = Math.floor(secs / 3600)
+  const d = Math.floor(secs / 86400)
+  const h = Math.floor((secs % 86400) / 3600)
   const m = Math.floor((secs % 3600) / 60)
   const s = Math.floor(secs % 60)
+  if (d > 0) return `${d}d ${h}h`
   if (h > 0) return `${h}h ${m}m`
   if (m > 0) return `${m}m`
   return `${s}s`
+}
+
+// 24h clock time, e.g. "17:00" — for pairing with a countdown.
+export function formatClockTime(secs: number): string {
+  const d = new Date(Date.now() + secs * 1000)
+  const hh = d.getHours().toString().padStart(2, '0')
+  const mm = d.getMinutes().toString().padStart(2, '0')
+  return `${hh}:${mm}`
 }
 
 export function formatResetLabel(secs: number): string {
@@ -49,7 +59,7 @@ export function formatResetLabel(secs: number): string {
   const ampm = h >= 12 ? 'PM' : 'AM'
   const h12 = h % 12 || 12
   const m = d.getMinutes().toString().padStart(2, '0')
-  return `Resets ${day} ${h12}:${m}${ampm}`
+  return `Resets ${day} ${h12}:${m}${ampm} (${formatCountdown(secs)})`
 }
 
 export function formatTime(date: Date): string {

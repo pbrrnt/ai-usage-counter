@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { useStore } from '../store'
 import { ALL_PROVIDERS, PROVIDER_LABELS, PROVIDER_ICONS } from '../types'
 import { splitEmojis } from '../utils'
@@ -50,9 +50,22 @@ export function Settings() {
   const setRefreshInterval = useStore(s => s.setRefreshInterval)
   const petIcon = useStore(s => s.petIcon)
   const setPetIcon = useStore(s => s.setPetIcon)
+  const hoverMode = useStore(s => s.hoverMode)
+  const setHoverMode = useStore(s => s.setHoverMode)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowSettings(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [setShowSettings])
 
   return (
-    <div className="settings-overlay">
+    <div
+      className="settings-overlay"
+      onClick={e => { if (e.target === e.currentTarget) setShowSettings(false) }}
+    >
       <div className="settings-panel">
         <div className="settings-header">
           <span className="settings-title">Settings</span>
@@ -61,7 +74,7 @@ export function Settings() {
 
         <div className="divider" />
 
-        <div className="settings-body" style={{ maxHeight: 400, overflowY: 'auto' }}>
+        <div className="settings-body">
           {/* Visible Agents */}
           <Section id="agents" title="👁 Visible Agents">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -147,6 +160,27 @@ export function Settings() {
                   />
                   <span className="toggle-track" />
                 </label>
+              </div>
+
+              {/* Hover behavior */}
+              <div className="setting-row">
+                <div>
+                  <div className="setting-label">Hover Behavior</div>
+                  <div className="setting-sub">
+                    {hoverMode === 'off' && 'Manual only — use the collapse button or tray click'}
+                    {hoverMode === 'pill' && 'Collapse to a floating pill when idle · expand on hover'}
+                    {hoverMode === 'tray' && 'Hide entirely · fly out from the tray icon on hover'}
+                  </div>
+                </div>
+                <select
+                  value={hoverMode}
+                  onChange={e => setHoverMode(e.target.value as typeof hoverMode)}
+                  style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}
+                >
+                  <option value="off">Off</option>
+                  <option value="pill">Floating pill</option>
+                  <option value="tray">Tray icon</option>
+                </select>
               </div>
 
             </div>
