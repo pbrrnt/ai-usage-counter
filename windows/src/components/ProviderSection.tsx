@@ -61,25 +61,7 @@ export function ProviderSection({ providerID }: Props) {
       </div>
 
       {/* Usage bars */}
-      {quotaLanes && quotaLanes.length > 0 ? (
-        <>
-          {quotaLanes.map(lane => (
-            <UsageBar
-              key={lane.id}
-              label={lane.label}
-              icon="⬡"
-              iconColor={tint}
-              vm={{
-                fraction: lane.pct / 100,
-                usedText: `${lane.pct.toFixed(0)}%`,
-                limitText: '',
-                resetLabel: lane.resetText || '',
-                isActive: true
-              }}
-            />
-          ))}
-        </>
-      ) : hasBars ? (
+      {hasBars ? (
         <>
           {sessionBar && (
             <UsageBar
@@ -96,6 +78,27 @@ export function ProviderSection({ providerID }: Props) {
               iconColor="#33ade6"
               vm={weeklyBar}
             />
+          )}
+          {quotaLanes && quotaLanes.map(lane => (
+            <UsageBar
+              key={lane.id}
+              label={lane.label}
+              icon="⬡"
+              iconColor={tint}
+              vm={{
+                fraction: lane.pct / 100,
+                usedText: `${lane.pct.toFixed(0)}%`,
+                limitText: '',
+                resetLabel: lane.resetText || '',
+                isActive: true
+              }}
+            />
+          ))}
+          {providerID === 'claude' && !quotaLanes?.some(l => l.id === 'fable') && (
+            <div className="setting-row">
+              <span className="usage-label" style={{ fontSize: 11 }}>⬡ Fable 5</span>
+              <span className="not-connected" style={{ fontSize: 10 }}>Not available</span>
+            </div>
           )}
         </>
       ) : (

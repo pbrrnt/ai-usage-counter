@@ -1,4 +1,4 @@
-use crate::models::ProviderUsageResult;
+use crate::models::{ProviderUsageResult, QuotaLaneRaw};
 use chrono::Utc;
 
 pub const START_URL: &str = "https://claude.ai/";
@@ -59,11 +59,48 @@ pub fn parse_usage(raw: &str) -> Option<ProviderUsageResult> {
         session_reset_secs: session_reset,
         weekly_pct,
         weekly_reset_secs: weekly_reset,
-        quota_lanes: vec![],
+        quota_lanes: fable_lane(&root).into_iter().collect(),
         plan_name: None,
         is_auth_expired: false,
         fetched_at: Utc::now().to_rfc3339(),
     })
+}
+
+// Fable 5 runs its own weekly quota, separate from the five_hour/seven_day
+// totals — surfaced as a `weekly_scoped` entry in `limits[]` (scoped to the
+// "Fable" model) rather than a top-level field. Absent entirely on
+// responses/plans that don't have a Fable-specific limit.
+fn fable_lane(root: &serde_json::Value) -> Option<QuotaLaneRaw> {
+    let entry = root.get("limits")?.as_array()?.iter().find(|l| {
+        l.get("scope")
+            .and_then(|s| s.get("model"))
+            .and_then(|m| m.get("display_name"))
+            .and_then(|d| d.as_str())
+            .map(|s| s.eq_ignore_ascii_case("fable"))
+            .unwrap_or(false)
+    })?;
+
+    let pct = entry.get("percent").and_then(|p| p.as_f64())?;
+    let reset_text = reset_secs(entry.get("resets_at")).map(format_hm);
+
+    Some(QuotaLaneRaw {
+        id: "fable".to_string(),
+        label: "Fable 5".to_string(),
+        group: None,
+        pct,
+        reset_text,
+    })
+}
+
+fn format_hm(secs: f64) -> String {
+    let secs = secs as i64;
+    let h = secs / 3600;
+    let m = (secs % 3600) / 60;
+    if h > 0 {
+        format!("Resets in {h}h {m}m")
+    } else {
+        format!("Resets in {m}m")
+    }
 }
 
 fn parse_window(d: &serde_json::Value) -> (Option<f64>, Option<f64>) {
