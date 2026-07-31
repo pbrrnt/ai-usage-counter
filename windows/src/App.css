@@ -5,6 +5,115 @@
   padding: 0;
 }
 
+/* ─── Theme tokens ─── */
+/* Dark is the default (unchanged look). Light applies via prefers-color-scheme
+   (auto mode) or an explicit [data-theme] override (manual mode). */
+:root {
+  --surface: rgba(13, 13, 15, 0.95);
+  --surface-solid: rgb(13, 13, 15);
+  --surface-compact: rgba(13, 13, 15, 0.92);
+  --surface-input: rgba(255, 255, 255, 0.1);
+  --surface-chip: rgba(255, 255, 255, 0.06);
+  --surface-chip-hover: rgba(255, 255, 255, 0.12);
+  --surface-signin: rgb(28, 28, 30);
+  --scrim: rgba(0, 0, 0, 0.5);
+
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.1);
+  --border-hairline: rgba(255, 255, 255, 0.04);
+
+  --text: #ffffff;
+  --text-strong: rgba(255, 255, 255, 0.85);
+  --text-secondary: rgba(255, 255, 255, 0.75);
+  --text-tertiary: rgba(255, 255, 255, 0.55);
+  --text-placeholder-btn: rgba(255, 255, 255, 0.5);
+  --text-icon: rgba(255, 255, 255, 0.45);
+  --text-icon-hover: rgba(255, 255, 255, 0.85);
+  --text-muted: rgba(255, 255, 255, 0.4);
+  --text-faint: rgba(255, 255, 255, 0.35);
+  --text-fainter: rgba(255, 255, 255, 0.3);
+  --text-dot: rgba(255, 255, 255, 0.2);
+
+  --badge-bg: rgba(255, 255, 255, 0.08);
+  --badge-text: rgba(255, 255, 255, 0.4);
+
+  --spinner-track: rgba(255, 255, 255, 0.15);
+  --spinner-arc: rgba(255, 255, 255, 0.6);
+
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 0.5px rgba(255, 255, 255, 0.04);
+  --shadow-compact: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --surface: rgba(246, 246, 248, 0.95);
+    --surface-solid: rgb(255, 255, 255);
+    --surface-compact: rgba(246, 246, 248, 0.92);
+    --surface-input: rgba(0, 0, 0, 0.06);
+    --surface-chip: rgba(0, 0, 0, 0.05);
+    --surface-chip-hover: rgba(0, 0, 0, 0.09);
+    --surface-signin: rgb(255, 255, 255);
+    --scrim: rgba(0, 0, 0, 0.25);
+
+    --border: rgba(0, 0, 0, 0.08);
+    --border-strong: rgba(0, 0, 0, 0.12);
+    --border-hairline: rgba(0, 0, 0, 0.05);
+
+    --text: #0d0d0f;
+    --text-strong: rgba(0, 0, 0, 0.85);
+    --text-secondary: rgba(0, 0, 0, 0.72);
+    --text-tertiary: rgba(0, 0, 0, 0.55);
+    --text-placeholder-btn: rgba(0, 0, 0, 0.5);
+    --text-icon: rgba(0, 0, 0, 0.45);
+    --text-icon-hover: rgba(0, 0, 0, 0.8);
+    --text-muted: rgba(0, 0, 0, 0.45);
+    --text-faint: rgba(0, 0, 0, 0.4);
+    --text-fainter: rgba(0, 0, 0, 0.32);
+    --text-dot: rgba(0, 0, 0, 0.25);
+
+    --badge-bg: rgba(0, 0, 0, 0.06);
+    --badge-text: rgba(0, 0, 0, 0.5);
+
+    --spinner-track: rgba(0, 0, 0, 0.15);
+    --spinner-arc: rgba(0, 0, 0, 0.55);
+
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+    --shadow-compact: 0 4px 16px rgba(0, 0, 0, 0.14);
+  }
+}
+:root[data-theme="light"] {
+  --surface: rgba(246, 246, 248, 0.95);
+  --surface-solid: rgb(255, 255, 255);
+  --surface-compact: rgba(246, 246, 248, 0.92);
+  --surface-input: rgba(0, 0, 0, 0.06);
+  --surface-chip: rgba(0, 0, 0, 0.05);
+  --surface-chip-hover: rgba(0, 0, 0, 0.09);
+  --surface-signin: rgb(255, 255, 255);
+  --scrim: rgba(0, 0, 0, 0.25);
+
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --border-hairline: rgba(0, 0, 0, 0.05);
+
+  --text: #0d0d0f;
+  --text-strong: rgba(0, 0, 0, 0.85);
+  --text-secondary: rgba(0, 0, 0, 0.72);
+  --text-tertiary: rgba(0, 0, 0, 0.55);
+  --text-placeholder-btn: rgba(0, 0, 0, 0.5);
+  --text-icon: rgba(0, 0, 0, 0.45);
+  --text-icon-hover: rgba(0, 0, 0, 0.8);
+  --text-muted: rgba(0, 0, 0, 0.45);
+  --text-faint: rgba(0, 0, 0, 0.4);
+  --text-fainter: rgba(0, 0, 0, 0.32);
+  --text-dot: rgba(0, 0, 0, 0.25);
+
+  --badge-bg: rgba(0, 0, 0, 0.06);
+  --badge-text: rgba(0, 0, 0, 0.5);
+
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  --shadow-compact: 0 4px 16px rgba(0, 0, 0, 0.14);
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
   background: transparent;
@@ -20,13 +129,13 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: rgba(13, 13, 15, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 0.5px rgba(255,255,255,0.04);
+  box-shadow: var(--shadow);
   /* Idle = faded so it doesn't block the view; brighten to full on hover. */
   opacity: var(--idle-opacity, 1);
   transition: opacity 0.25s ease;
@@ -69,7 +178,7 @@ body {
 }
 .col-divider {
   width: 1px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--border);
   flex-shrink: 0;
 }
 
@@ -132,7 +241,7 @@ body {
 .header-title {
   font-size: 13px;
   font-weight: 600;
-  color: white;
+  color: var(--text);
   pointer-events: none;
 }
 
@@ -147,14 +256,14 @@ body {
 
 .divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--border);
 }
 
 /* ─── Buttons ─── */
 .icon-btn {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-icon);
   font-size: 13px;
   cursor: pointer;
   padding: 2px 5px;
@@ -162,15 +271,15 @@ body {
   line-height: 1;
   transition: color 0.15s;
 }
-.icon-btn:hover { color: rgba(255, 255, 255, 0.85); }
+.icon-btn:hover { color: var(--text-icon-hover); }
 
 /* ─── Spinner ─── */
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner {
   width: 10px;
   height: 10px;
-  border: 1.5px solid rgba(255,255,255,0.15);
-  border-top-color: rgba(255,255,255,0.6);
+  border: 1.5px solid var(--spinner-track);
+  border-top-color: var(--spinner-arc);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -193,7 +302,7 @@ body {
 .provider-name {
   font-size: 12px;
   font-weight: 600;
-  color: white;
+  color: var(--text);
 }
 
 .badge {
@@ -201,8 +310,8 @@ body {
   font-weight: 600;
   padding: 1px 4px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.4);
+  background: var(--badge-bg);
+  color: var(--badge-text);
 }
 .badge-yellow {
   background: rgba(255, 214, 10, 0.12);
@@ -213,8 +322,8 @@ body {
   font-size: 10px;
   font-weight: 600;
   padding: 4px 8px;
-  background: rgba(28, 28, 30, 1);
-  border: none;
+  background: var(--surface-signin);
+  border: 1px solid var(--border-strong);
   border-radius: 5px;
   cursor: pointer;
   transition: opacity 0.15s;
@@ -223,7 +332,7 @@ body {
 
 .not-connected {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-faint);
 }
 
 /* ─── Tint colors ─── */
@@ -248,7 +357,7 @@ body {
 .usage-label {
   font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-secondary);
 }
 
 .usage-pct {
@@ -259,7 +368,7 @@ body {
 
 .bar-track {
   height: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--badge-bg);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -275,7 +384,7 @@ body {
   justify-content: space-between;
   font-size: 10px;
   font-family: 'Cascadia Code', 'SF Mono', 'Consolas', monospace;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-faint);
 }
 
 /* ─── Footer ─── */
@@ -288,7 +397,7 @@ body {
 
 .footer-text {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-fainter);
 }
 
 /* ─── Compact view ─── */
@@ -299,12 +408,12 @@ body {
   align-items: center;
   gap: 7px;
   padding: 0 10px;
-  background: rgba(13, 13, 15, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--surface-compact);
+  border: 1px solid var(--border);
   border-radius: 10px;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-compact);
   cursor: grab;
   opacity: var(--idle-opacity, 1);
   transition: opacity 0.25s ease;
@@ -316,7 +425,7 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-chip);
   border: none;
   border-radius: 6px;
   padding: 3px 7px;
@@ -324,11 +433,11 @@ body {
   flex-shrink: 0;
   transition: background 0.15s;
 }
-.compact-provider:hover { background: rgba(255, 255, 255, 0.12); }
+.compact-provider:hover { background: var(--surface-chip-hover); }
 .compact-name {
   font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-strong);
 }
 
 .compact-nums {
@@ -342,7 +451,7 @@ body {
 .settings-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -355,8 +464,8 @@ body {
   /* Never taller than the window itself, so the header below can't be pushed
      outside the visible area when the window is small. */
   max-height: calc(100vh - 24px);
-  background: rgb(13, 13, 15);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface-solid);
+  border: 1px solid var(--border-strong);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
@@ -373,7 +482,7 @@ body {
 .settings-title {
   font-size: 13px;
   font-weight: 600;
-  color: white;
+  color: var(--text);
   flex: 1;
 }
 
@@ -403,12 +512,12 @@ body {
 .setting-label {
   font-size: 12px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-strong);
 }
 
 .setting-sub {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-faint);
   margin-top: 2px;
 }
 
@@ -423,7 +532,7 @@ body {
 .toggle-track {
   width: 36px;
   height: 20px;
-  background: rgba(255,255,255,0.1);
+  background: var(--surface-input);
   border-radius: 10px;
   transition: background 0.2s;
   position: relative;
@@ -435,6 +544,7 @@ body {
   width: 16px; height: 16px;
   background: white;
   border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   transition: transform 0.2s;
 }
 .toggle input:checked + .toggle-track {
@@ -450,7 +560,7 @@ body {
   appearance: none;
   width: 100%;
   height: 4px;
-  background: rgba(255,255,255,0.1);
+  background: var(--surface-input);
   border-radius: 2px;
   outline: none;
   cursor: pointer;
@@ -476,7 +586,7 @@ body {
 .section-head .setting-label { cursor: pointer; }
 .section-chevron {
   font-size: 9px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   transition: transform 0.2s ease;
   width: 10px;
   display: inline-block;
@@ -492,9 +602,9 @@ kbd.kbd {
   font-family: 'Cascadia Code', 'SF Mono', 'Consolas', monospace;
   font-size: 10px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
+  background: var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 5px;
   padding: 2px 6px;
   white-space: nowrap;

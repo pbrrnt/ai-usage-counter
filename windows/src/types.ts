@@ -10,6 +10,9 @@ export type ExpandSetting = ExpandDir | 'auto'
 // 'off' — manual only; 'pill' — collapses to a floating pill, expands on hover;
 // 'tray' — hidden entirely, flies out from the system tray icon on hover.
 export type HoverMode = 'off' | 'pill' | 'tray'
+
+// 'auto' follows the OS light/dark setting (prefers-color-scheme); 'light'/'dark' override it.
+export type Theme = 'auto' | 'light' | 'dark'
 export const EXPAND_DIR_ARROW: Record<ExpandDir, string> = {
   down: '↓', up: '↑', left: '←', right: '→',
 }

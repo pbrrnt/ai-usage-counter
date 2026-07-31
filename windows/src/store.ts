@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow, PhysicalPosition, LogicalSize, currentMonitor } from '@tauri-apps/api/window'
-import type { ProviderID, ProviderState, AppState, AntigravityUsage, ProviderUsageResult, ExpandDir, ExpandSetting, HoverMode } from './types'
+import type { ProviderID, ProviderState, AppState, AntigravityUsage, ProviderUsageResult, ExpandDir, ExpandSetting, HoverMode, Theme } from './types'
 import { ALL_PROVIDERS } from './types'
 import { formatCountdown, formatResetLabel, formatClockTime } from './utils'
 import { checkProviderResets } from './resetNotify'
@@ -95,6 +95,7 @@ interface Store extends AppState {
   expandDirection: ExpandSetting
   autoResolved: ExpandDir
   hoverMode: HoverMode
+  theme: Theme
 
   refreshAll: () => Promise<void>
   loadProviderAuthStates: () => Promise<void>
@@ -104,6 +105,7 @@ interface Store extends AppState {
   setOpacity: (v: number) => void
   setAutoDim: (v: boolean) => void
   setHoverMode: (v: HoverMode) => void
+  setTheme: (v: Theme) => void
   setAlwaysOnTop: (v: boolean) => void
   setShowSettings: (v: boolean) => void
   setCompact: (v: boolean) => Promise<void>
@@ -159,6 +161,16 @@ function mapProviderUsage(u: ProviderUsageResult): ProviderState {
   }
 }
 
+// 'auto' means "no override" — let the prefers-color-scheme CSS media query
+// decide. Anything else pins the theme regardless of the OS setting.
+function applyTheme(theme: Theme) {
+  if (theme === 'auto') {
+    document.documentElement.removeAttribute('data-theme')
+  } else {
+    document.documentElement.setAttribute('data-theme', theme)
+  }
+}
+
 export const useStore = create<Store>((set, get) => ({
   providers: {
     claude: defaultProvider(),
@@ -176,6 +188,11 @@ export const useStore = create<Store>((set, get) => ({
   alwaysOnTop: localStorage.getItem('alwaysOnTop') !== 'false',
   compact: false,
   hoverMode: (localStorage.getItem('hoverMode') as HoverMode) || 'off',
+  theme: (() => {
+    const t = (localStorage.getItem('theme') as Theme) || 'auto'
+    applyTheme(t)
+    return t
+  })(),
   showSettings: false,
   visibleProviders: (() => {
     try {
@@ -405,6 +422,12 @@ export const useStore = create<Store>((set, get) => ({
   setHoverMode: v => {
     set({ hoverMode: v })
     localStorage.setItem('hoverMode', v)
+  },
+
+  setTheme: v => {
+    set({ theme: v })
+    localStorage.setItem('theme', v)
+    applyTheme(v)
   },
 
   setAlwaysOnTop: async v => {

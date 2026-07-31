@@ -19,7 +19,7 @@ export function Footer() {
           <span className="footer-text" style={{ color: '#30d158cc' }}>
             Live · {menubarSource.charAt(0).toUpperCase() + menubarSource.slice(1)}
           </span>
-          <span className="footer-text" style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
+          <span className="footer-text" style={{ color: 'var(--text-dot)' }}>·</span>
         </>
       )}
       <span className="footer-text">Updated {formatTime(updatedAt)}</span>

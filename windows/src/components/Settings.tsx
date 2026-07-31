@@ -52,6 +52,8 @@ export function Settings() {
   const setPetIcon = useStore(s => s.setPetIcon)
   const hoverMode = useStore(s => s.hoverMode)
   const setHoverMode = useStore(s => s.setHoverMode)
+  const theme = useStore(s => s.theme)
+  const setTheme = useStore(s => s.setTheme)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -109,7 +111,7 @@ export function Settings() {
                   value={sessionTokenLimit || ''}
                   onChange={e => setSessionTokenLimit(Number(e.target.value))}
                   placeholder="0 = auto"
-                  style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: 4, padding: '2px 6px', width: 90, fontSize: 11, textAlign: 'right' }}
+                  style={{ background: 'var(--surface-input)', color: 'var(--text)', border: 'none', borderRadius: 4, padding: '2px 6px', width: 90, fontSize: 11, textAlign: 'right' }}
                 />
               </div>
               <div className="setting-row">
@@ -119,7 +121,7 @@ export function Settings() {
                   value={weeklyTokenLimit || ''}
                   onChange={e => setWeeklyTokenLimit(Number(e.target.value))}
                   placeholder="0 = auto"
-                  style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: 4, padding: '2px 6px', width: 90, fontSize: 11, textAlign: 'right' }}
+                  style={{ background: 'var(--surface-input)', color: 'var(--text)', border: 'none', borderRadius: 4, padding: '2px 6px', width: 90, fontSize: 11, textAlign: 'right' }}
                 />
               </div>
             </div>
@@ -130,6 +132,23 @@ export function Settings() {
           {/* Appearance */}
           <Section id="appearance" title="🎨 Appearance">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Theme */}
+              <div className="setting-row">
+                <div>
+                  <div className="setting-label">Theme</div>
+                  <div className="setting-sub">Auto follows Windows' light/dark setting</div>
+                </div>
+                <select
+                  value={theme}
+                  onChange={e => setTheme(e.target.value as typeof theme)}
+                  style={{ background: 'var(--surface-input)', color: 'var(--text)', border: 'none', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}
+                >
+                  <option value="auto">Auto</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </div>
+
               {/* Always on top */}
               <div className="setting-row">
                 <div>
@@ -175,7 +194,7 @@ export function Settings() {
                 <select
                   value={hoverMode}
                   onChange={e => setHoverMode(e.target.value as typeof hoverMode)}
-                  style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}
+                  style={{ background: 'var(--surface-input)', color: 'var(--text)', border: 'none', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}
                 >
                   <option value="off">Off</option>
                   <option value="pill">Floating pill</option>
@@ -209,7 +228,7 @@ export function Settings() {
                         padding: '4px 6px',
                         borderRadius: 6,
                         border: active ? '1px solid #00aaff' : '1px solid transparent',
-                        background: active ? 'rgba(0,170,255,0.15)' : 'rgba(255,255,255,0.06)',
+                        background: active ? 'rgba(0,170,255,0.15)' : 'var(--surface-chip)',
                         cursor: 'pointer',
                       }}
                     >
@@ -224,12 +243,12 @@ export function Settings() {
                   value={petIcon}
                   onChange={e => setPetIcon(e.target.value)}
                   placeholder="Type emoji(s)…"
-                  style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: 4, padding: '4px 8px', width: 110, fontSize: 14, textAlign: 'center' }}
+                  style={{ background: 'var(--surface-input)', color: 'var(--text)', border: 'none', borderRadius: 4, padding: '4px 8px', width: 110, fontSize: 14, textAlign: 'center' }}
                 />
                 {petIcon && (
                   <button
                     onClick={() => setPetIcon('')}
-                    style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 5, padding: '5px 10px', cursor: 'pointer' }}
+                    style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-placeholder-btn)', background: 'var(--surface-chip)', border: 'none', borderRadius: 5, padding: '5px 10px', cursor: 'pointer' }}
                   >
                     Turn off
                   </button>
@@ -249,7 +268,7 @@ export function Settings() {
                 min={30}
                 value={refreshInterval}
                 onChange={e => setRefreshInterval(Number(e.target.value))}
-                style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: 4, padding: '2px 6px', width: 60, fontSize: 11, textAlign: 'right' }}
+                style={{ background: 'var(--surface-input)', color: 'var(--text)', border: 'none', borderRadius: 4, padding: '2px 6px', width: 60, fontSize: 11, textAlign: 'right' }}
               />
             </div>
           </Section>

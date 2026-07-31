@@ -78,8 +78,8 @@ export function CompactView() {
       </button>
       <span className="compact-nums">
         <span style={{ color: primaryColor, fontWeight: 700 }}>{primary}%</span>
-        <span style={{ color: 'rgba(255,255,255,0.2)' }}> | </span>
-        <span style={{ color: 'rgba(255,255,255,0.55)' }}>{secondary}%</span>
+        <span style={{ color: 'var(--text-dot)' }}> | </span>
+        <span style={{ color: 'var(--text-tertiary)' }}>{secondary}%</span>
       </span>
       <div className="spacer" />
       {isLoading && <span className="spinner" style={{ width: 8, height: 8 }} />}
