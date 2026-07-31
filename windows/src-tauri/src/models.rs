@@ -27,6 +27,7 @@ pub struct QuotaLaneRaw {
     pub group: Option<String>,
     pub pct: f64,
     pub reset_text: Option<String>,
+    pub reset_secs: Option<f64>,
 }
 
 // Tray icon bounds (physical px), sent to the frontend so it can position the

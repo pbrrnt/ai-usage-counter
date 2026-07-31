@@ -1,4 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { useStore } from '../store'
 import { ALL_PROVIDERS, PROVIDER_LABELS, PROVIDER_ICONS } from '../types'
 import { splitEmojis } from '../utils'
@@ -54,6 +55,19 @@ export function Settings() {
   const setHoverMode = useStore(s => s.setHoverMode)
   const theme = useStore(s => s.theme)
   const setTheme = useStore(s => s.setTheme)
+  const postalCode = useStore(s => s.postalCode)
+  const setPostalCode = useStore(s => s.setPostalCode)
+  const [telegramStatus, setTelegramStatus] = useState('Not sent yet')
+
+  const sendTestNotification = async () => {
+    setTelegramStatus('Sending…')
+    try {
+      const sent = await invoke<boolean>('send_telegram_message', { text: '✅ AI Usage Counter — test notification' })
+      setTelegramStatus(sent ? 'Sent — check Telegram' : 'Not configured — fill in telegram_config.txt')
+    } catch (e) {
+      setTelegramStatus(`Failed: ${e}`)
+    }
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -146,8 +160,22 @@ export function Settings() {
                   <option value="auto">Auto</option>
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
+                  <option value="sunset">Sunset</option>
                 </select>
               </div>
+
+              {theme === 'sunset' && (
+                <div className="setting-row">
+                  <div className="setting-sub" style={{ margin: 0 }}>Thai postal code (for sunrise/sunset)</div>
+                  <input
+                    type="text"
+                    value={postalCode}
+                    onChange={e => setPostalCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                    placeholder="10110"
+                    style={{ background: 'var(--surface-input)', color: 'var(--text)', border: 'none', borderRadius: 4, padding: '2px 6px', width: 60, fontSize: 11, textAlign: 'right' }}
+                  />
+                </div>
+              )}
 
               {/* Always on top */}
               <div className="setting-row">
@@ -270,6 +298,28 @@ export function Settings() {
                 onChange={e => setRefreshInterval(Number(e.target.value))}
                 style={{ background: 'var(--surface-input)', color: 'var(--text)', border: 'none', borderRadius: 4, padding: '2px 6px', width: 60, fontSize: 11, textAlign: 'right' }}
               />
+            </div>
+          </Section>
+
+          <div className="divider" />
+
+          {/* Telegram */}
+          <Section id="telegram" title="Telegram Notifications" defaultOpen={false}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="setting-sub" style={{ marginTop: 0 }}>
+                Configured via telegram_config.txt in the app's data folder — fill in
+                BOT_TOKEN and CHAT_ID there, no restart needed.
+              </div>
+              <div className="setting-row">
+                <div className="setting-sub" style={{ margin: 0 }}>{telegramStatus}</div>
+                <button
+                  onClick={sendTestNotification}
+                  disabled={telegramStatus === 'Sending…'}
+                  style={{ fontSize: 10, fontWeight: 600, color: 'var(--text)', background: 'var(--surface-chip)', border: 'none', borderRadius: 5, padding: '5px 10px', cursor: 'pointer' }}
+                >
+                  Send Test
+                </button>
+              </div>
             </div>
           </Section>
 

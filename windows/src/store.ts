@@ -5,7 +5,8 @@ import { getCurrentWindow, PhysicalPosition, LogicalSize, currentMonitor } from 
 import type { ProviderID, ProviderState, AppState, AntigravityUsage, ProviderUsageResult, ExpandDir, ExpandSetting, HoverMode, Theme } from './types'
 import { ALL_PROVIDERS } from './types'
 import { formatCountdown, formatResetLabel, formatClockTime } from './utils'
-import { checkProviderResets } from './resetNotify'
+import { checkProviderResets, checkAntigravityResets } from './resetNotify'
+import { isDaytime } from './sunTimes'
 
 const COMPACT_HEIGHT = 44
 
@@ -96,6 +97,7 @@ interface Store extends AppState {
   autoResolved: ExpandDir
   hoverMode: HoverMode
   theme: Theme
+  postalCode: string
 
   refreshAll: () => Promise<void>
   loadProviderAuthStates: () => Promise<void>
@@ -106,6 +108,7 @@ interface Store extends AppState {
   setAutoDim: (v: boolean) => void
   setHoverMode: (v: HoverMode) => void
   setTheme: (v: Theme) => void
+  setPostalCode: (v: string) => void
   setAlwaysOnTop: (v: boolean) => void
   setShowSettings: (v: boolean) => void
   setCompact: (v: boolean) => Promise<void>
@@ -131,6 +134,34 @@ const defaultProvider = (): ProviderState => ({
   usingLocal: false,
 })
 
+const PROVIDER_CACHE_KEY = 'providerCache'
+
+// Last-known usage, shown immediately on launch instead of a blank screen
+// while the real (slow — real hidden webview per provider) fetch is in
+// flight. Purely a cosmetic head start; refreshAll() overwrites it as soon
+// as fresh data lands, same as loadProviderAuthStates() already does for
+// authState.
+function loadProviderCache(): Record<ProviderID, ProviderState> | null {
+  try {
+    const raw = localStorage.getItem(PROVIDER_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Record<ProviderID, ProviderState>
+    for (const id of ALL_PROVIDERS) {
+      const p = parsed[id]
+      if (p?.fetchedAt) p.fetchedAt = new Date(p.fetchedAt)
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function saveProviderCache(providers: Record<ProviderID, ProviderState>) {
+  try {
+    localStorage.setItem(PROVIDER_CACHE_KEY, JSON.stringify(providers))
+  } catch {}
+}
+
 function mapProviderUsage(u: ProviderUsageResult): ProviderState {
   const pctToFraction = (pct: number | null) => pct != null ? pct / 100 : 0
   return {
@@ -143,6 +174,7 @@ function mapProviderUsage(u: ProviderUsageResult): ProviderState {
       group: l.group,
       pct: l.pct,
       resetText: l.reset_text,
+      resetSecs: l.reset_secs,
     })),
     sessionBar: u.session_pct != null ? {
       fraction: pctToFraction(u.session_pct),
@@ -162,17 +194,22 @@ function mapProviderUsage(u: ProviderUsageResult): ProviderState {
 }
 
 // 'auto' means "no override" — let the prefers-color-scheme CSS media query
-// decide. Anything else pins the theme regardless of the OS setting.
-function applyTheme(theme: Theme) {
+// decide. 'light'/'dark' pin it regardless of the OS setting. 'sunset'
+// resolves to light/dark based on the sun position for postalCode, then
+// applies that like a manual pin — re-called periodically since the
+// sunrise/sunset boundary moves as time passes (see initWindow).
+function applyTheme(theme: Theme, postalCode: string) {
   if (theme === 'auto') {
     document.documentElement.removeAttribute('data-theme')
+  } else if (theme === 'sunset') {
+    document.documentElement.setAttribute('data-theme', isDaytime(postalCode) ? 'light' : 'dark')
   } else {
     document.documentElement.setAttribute('data-theme', theme)
   }
 }
 
 export const useStore = create<Store>((set, get) => ({
-  providers: {
+  providers: loadProviderCache() ?? {
     claude: defaultProvider(),
     codex: defaultProvider(),
     gemini: defaultProvider(),
@@ -190,9 +227,10 @@ export const useStore = create<Store>((set, get) => ({
   hoverMode: (localStorage.getItem('hoverMode') as HoverMode) || 'off',
   theme: (() => {
     const t = (localStorage.getItem('theme') as Theme) || 'auto'
-    applyTheme(t)
+    applyTheme(t, localStorage.getItem('postalCode') || '10110')
     return t
   })(),
+  postalCode: localStorage.getItem('postalCode') || '10110',
   showSettings: false,
   visibleProviders: (() => {
     try {
@@ -246,9 +284,13 @@ export const useStore = create<Store>((set, get) => ({
   refreshAll: async () => {
     set({ isLoading: true })
 
-    // Claude: official claude.ai API only (requires login) — never a local estimate.
-    const claudeAuth = get().providers.claude.authState
-    if (claudeAuth === 'signed_in' || claudeAuth === 'expired') {
+    // Each provider's fetch is independent — run them concurrently so total
+    // wait is the slowest single provider, not the sum of all of them (each
+    // one spins up a real hidden webview against the real site, tens of
+    // seconds is normal per provider, and that used to stack up serially).
+    const fetchClaude = async () => {
+      const claudeAuth = get().providers.claude.authState
+      if (claudeAuth !== 'signed_in' && claudeAuth !== 'expired') return
       try {
         const result = await invoke<ProviderUsageResult | null>('get_claude_usage')
         if (result) {
@@ -260,9 +302,9 @@ export const useStore = create<Store>((set, get) => ({
       }
     }
 
-    // Fetch Codex usage if signed in
-    const codexAuth = get().providers.codex.authState
-    if (codexAuth === 'signed_in' || codexAuth === 'expired') {
+    const fetchCodex = async () => {
+      const codexAuth = get().providers.codex.authState
+      if (codexAuth !== 'signed_in' && codexAuth !== 'expired') return
       try {
         const result = await invoke<ProviderUsageResult | null>('get_codex_usage')
         if (result) {
@@ -275,9 +317,9 @@ export const useStore = create<Store>((set, get) => ({
       }
     }
 
-    // Fetch Gemini usage if signed in
-    const geminiAuth = get().providers.gemini.authState
-    if (geminiAuth === 'signed_in' || geminiAuth === 'expired') {
+    const fetchGemini = async () => {
+      const geminiAuth = get().providers.gemini.authState
+      if (geminiAuth !== 'signed_in' && geminiAuth !== 'expired') return
       try {
         const result = await invoke<ProviderUsageResult | null>('get_gemini_usage')
         if (result) {
@@ -290,54 +332,61 @@ export const useStore = create<Store>((set, get) => ({
       }
     }
 
-    try {
-      const antiUsage = await invoke<AntigravityUsage | null>('get_antigravity_usage')
-      if (antiUsage) {
-        set(state => ({
-          providers: {
-            ...state.providers,
-            antigravity: {
-              authState: 'signed_in',
-              sessionBar: null,
-              weeklyBar: null,
-              quotaLanes: antiUsage.lanes.map(l => ({
-                id: l.id,
-                label: l.label,
-                group: l.group,
-                pct: l.pct,
-                resetText: l.reset_text,
-              })),
-              fetchedAt: new Date(antiUsage.fetched_at),
-              usingLocal: true,
-            }
-          }
-        }))
-      } else {
-        set(state => ({
-          providers: {
-            ...state.providers,
-            antigravity: {
-              ...state.providers.antigravity,
-              authState: 'signed_out',
-            }
-          }
-        }))
-      }
-    } catch (e) {
-      console.error('Antigravity usage error:', e)
-    } finally {
-      set({ isLoading: false })
-
-      // Update tray title
-      const state = get()
-      const provider = state.providers[state.menubarSource]
-      const fraction = provider.sessionBar?.fraction ?? 0
-      const pct = Math.round(fraction * 100)
+    const fetchAntigravity = async () => {
       try {
-        await invoke('update_tray_title', { title: `AI Usage — ${pct}%` })
+        const antiUsage = await invoke<AntigravityUsage | null>('get_antigravity_usage')
+        if (antiUsage) {
+          set(state => ({
+            providers: {
+              ...state.providers,
+              antigravity: {
+                authState: 'signed_in',
+                sessionBar: null,
+                weeklyBar: null,
+                quotaLanes: antiUsage.lanes.map(l => ({
+                  id: l.id,
+                  label: l.label,
+                  group: l.group,
+                  pct: l.pct,
+                  resetText: l.reset_text,
+                  resetSecs: l.reset_secs,
+                })),
+                fetchedAt: new Date(antiUsage.fetched_at),
+                usingLocal: true,
+              }
+            }
+          }))
+          checkAntigravityResets(antiUsage)
+        } else {
+          set(state => ({
+            providers: {
+              ...state.providers,
+              antigravity: {
+                ...state.providers.antigravity,
+                authState: 'signed_out',
+              }
+            }
+          }))
+        }
       } catch (e) {
-        // ignore
+        console.error('Antigravity usage error:', e)
       }
+    }
+
+    await Promise.allSettled([fetchClaude(), fetchCodex(), fetchGemini(), fetchAntigravity()])
+
+    set({ isLoading: false })
+    saveProviderCache(get().providers)
+
+    // Update tray title
+    const state = get()
+    const provider = state.providers[state.menubarSource]
+    const fraction = provider.sessionBar?.fraction ?? 0
+    const pct = Math.round(fraction * 100)
+    try {
+      await invoke('update_tray_title', { title: `AI Usage — ${pct}%` })
+    } catch (e) {
+      // ignore
     }
   },
 
@@ -427,7 +476,13 @@ export const useStore = create<Store>((set, get) => ({
   setTheme: v => {
     set({ theme: v })
     localStorage.setItem('theme', v)
-    applyTheme(v)
+    applyTheme(v, get().postalCode)
+  },
+
+  setPostalCode: v => {
+    set({ postalCode: v })
+    localStorage.setItem('postalCode', v)
+    if (get().theme === 'sunset') applyTheme('sunset', v)
   },
 
   setAlwaysOnTop: async v => {
@@ -672,6 +727,12 @@ export const useStore = create<Store>((set, get) => ({
       }
       await win.listen('tauri://focus', reassertTopmost)
       setInterval(reassertTopmost, 2000)
+
+      // Sunset theme mode: the light/dark boundary moves as time passes, so
+      // re-resolve it periodically rather than only once at launch/setting-change.
+      setInterval(() => {
+        if (get().theme === 'sunset') applyTheme('sunset', get().postalCode)
+      }, 60_000)
 
       // Refresh auth state when a provider login window closes
       await listen<string>('auth-state-changed', (event) => {

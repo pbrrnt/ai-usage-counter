@@ -159,6 +159,7 @@ pub fn parse_usage(raw: &str) -> Option<ProviderUsageResult> {
                         group: row.get("group").and_then(|v| v.as_str()).map(|s| s.to_string()),
                         pct: row.get("pct")?.as_f64()?.max(0.0).min(100.0),
                         reset_text: row.get("reset").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                        reset_secs: None,
                     })
                 })
                 .collect()

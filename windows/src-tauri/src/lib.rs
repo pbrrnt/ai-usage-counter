@@ -374,7 +374,7 @@ fn show_first_launch_tip(app: AppHandle) {
 // ── Telegram notifications ────────────────────────────────────────────────────
 
 #[tauri::command]
-async fn send_telegram_message(app: AppHandle, text: String) -> Result<(), String> {
+async fn send_telegram_message(app: AppHandle, text: String) -> Result<bool, String> {
     telegram::post_message(&app, &text).await
 }
 

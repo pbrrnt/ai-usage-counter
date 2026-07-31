@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { ProviderID, ProviderUsageResult } from './types'
+import type { ProviderID, ProviderUsageResult, AntigravityUsage } from './types'
 import { PROVIDER_LABELS } from './types'
 import { formatCountdown, formatClockTime } from './utils'
 
@@ -48,4 +48,11 @@ export function checkProviderResets(providerId: ProviderID, result: ProviderUsag
   const provider = PROVIDER_LABELS[providerId]
   checkSignal(`${providerId}:session`, provider, 'Session limit', result.session_pct, result.session_reset_secs)
   checkSignal(`${providerId}:weekly`, provider, 'Weekly limit', result.weekly_pct, result.weekly_reset_secs)
+}
+
+export function checkAntigravityResets(usage: AntigravityUsage) {
+  const provider = PROVIDER_LABELS.antigravity
+  for (const lane of usage.lanes) {
+    checkSignal(`antigravity:${lane.id}`, provider, lane.label, lane.pct, lane.reset_secs)
+  }
 }

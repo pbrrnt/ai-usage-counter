@@ -81,7 +81,8 @@ fn fable_lane(root: &serde_json::Value) -> Option<QuotaLaneRaw> {
     })?;
 
     let pct = entry.get("percent").and_then(|p| p.as_f64())?;
-    let reset_text = reset_secs(entry.get("resets_at")).map(format_hm);
+    let secs = reset_secs(entry.get("resets_at"));
+    let reset_text = secs.map(format_hm);
 
     Some(QuotaLaneRaw {
         id: "fable".to_string(),
@@ -89,6 +90,7 @@ fn fable_lane(root: &serde_json::Value) -> Option<QuotaLaneRaw> {
         group: None,
         pct,
         reset_text,
+        reset_secs: secs,
     })
 }
 

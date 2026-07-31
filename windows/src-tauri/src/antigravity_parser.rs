@@ -206,7 +206,7 @@ fn parse_user_status(root: serde_json::Value) -> Option<AntigravityUsageRaw> {
             let remaining = quota.get("remainingFraction").and_then(|v| v.as_f64()).unwrap_or(1.0);
             let pct = (1.0 - remaining) * 100.0;
             
-            let reset_text = if let Some(rt) = quota.get("resetTime") {
+            let (reset_text, reset_secs) = if let Some(rt) = quota.get("resetTime") {
                 let seconds = if let Some(secs_str) = rt.get("seconds").and_then(|s| s.as_str()) {
                     secs_str.parse::<i64>().unwrap_or(0)
                 } else if let Some(secs_num) = rt.get("seconds").and_then(|s| s.as_i64()) {
@@ -214,22 +214,22 @@ fn parse_user_status(root: serde_json::Value) -> Option<AntigravityUsageRaw> {
                 } else {
                     0
                 };
-                
+
                 if seconds > 0 {
                     let now = Utc::now().timestamp();
                     let diff = seconds - now;
                     if diff > 0 {
                         let hours = diff / 3600;
                         let mins = (diff % 3600) / 60;
-                        Some(format!("{}h {}m", hours, mins))
+                        (Some(format!("{}h {}m", hours, mins)), Some(diff as f64))
                     } else {
-                        Some("Reset".to_string())
+                        (Some("Reset".to_string()), Some(0.0))
                     }
                 } else {
-                    None
+                    (None, None)
                 }
             } else {
-                None
+                (None, None)
             };
 
             lanes.push(QuotaLaneRaw {
@@ -238,6 +238,7 @@ fn parse_user_status(root: serde_json::Value) -> Option<AntigravityUsageRaw> {
                 group: None,
                 pct,
                 reset_text,
+                reset_secs,
             });
         }
     }

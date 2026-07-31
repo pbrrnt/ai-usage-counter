@@ -56,9 +56,12 @@ fn load_config(app: &AppHandle) -> Option<(String, String)> {
     }
 }
 
-pub async fn post_message(app: &AppHandle, text: &str) -> Result<(), String> {
+// Returns Ok(true) once actually sent, Ok(false) when not configured (the
+// "off" state — background reset-detection calls treat this as a quiet
+// no-op, the Settings test button surfaces it as "not configured").
+pub async fn post_message(app: &AppHandle, text: &str) -> Result<bool, String> {
     let Some((token, chat_id)) = load_config(app) else {
-        return Ok(()); // not configured — silently a no-op, this is the "off" state
+        return Ok(false);
     };
 
     let chat_id_value: Value = chat_id
@@ -76,7 +79,7 @@ pub async fn post_message(app: &AppHandle, text: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     if res.status().is_success() {
-        Ok(())
+        Ok(true)
     } else {
         let body = res.text().await.unwrap_or_default();
         Err(format!("Telegram API error: {body}"))
