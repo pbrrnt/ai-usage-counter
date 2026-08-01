@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { ProviderID, ProviderUsageResult, AntigravityUsage } from './types'
-import { PROVIDER_LABELS } from './types'
+import type { ProviderID, ProviderState, ProviderUsageResult, AntigravityUsage } from './types'
+import { PROVIDER_LABELS, ALL_PROVIDERS } from './types'
 import { formatCountdown, formatClockTime } from './utils'
 
 // Percentage-point buffer against float/rounding noise before a drop counts
@@ -55,4 +55,22 @@ export function checkAntigravityResets(usage: AntigravityUsage) {
   for (const lane of usage.lanes) {
     checkSignal(`antigravity:${lane.id}`, provider, lane.label, lane.pct, lane.reset_secs)
   }
+}
+
+// Replies to a /usage command from Telegram with current usage for every
+// connected provider — whatever's already in the store, no fresh fetch (the
+// regular refresh loop already keeps this reasonably up to date).
+export function sendUsageSummary(providers: Record<ProviderID, ProviderState>) {
+  const lines: string[] = ['📊 สรุปการใช้งาน AI']
+  for (const id of ALL_PROVIDERS) {
+    const p = providers[id]
+    if (p.authState !== 'signed_in') continue
+    const parts: string[] = []
+    if (p.sessionBar) parts.push(`Session ${p.sessionBar.usedText}`)
+    if (p.weeklyBar) parts.push(`Weekly ${p.weeklyBar.usedText}`)
+    for (const lane of p.quotaLanes) parts.push(`${lane.label} ${lane.pct.toFixed(0)}%`)
+    if (parts.length) lines.push(`${PROVIDER_LABELS[id]}: ${parts.join(' · ')}`)
+  }
+  if (lines.length === 1) lines.push('ยังไม่ได้เชื่อมต่อ provider ไหนเลยครับ')
+  notify(lines.join('\n'))
 }

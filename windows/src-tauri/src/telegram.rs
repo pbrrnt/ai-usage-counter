@@ -1,7 +1,9 @@
+use serde::Deserialize;
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 
 const CONFIG_FILE: &str = "telegram_config.txt";
+const OFFSET_FILE: &str = "telegram_offset.txt";
 
 const TEMPLATE: &str = r#"# AI Usage Counter — Telegram notifications
 #
@@ -16,6 +18,10 @@ const TEMPLATE: &str = r#"# AI Usage Counter — Telegram notifications
 #      browser (with YOUR token pasted in):
 #        https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
 #      Look for "chat":{"id": ...} in the response — that number is CHAT_ID.
+#
+# Once set up, send the bot "/usage" any time to get current usage for every
+# connected provider (only replies to messages from CHAT_ID — anyone else
+# who finds the bot is ignored).
 
 BOT_TOKEN=
 CHAT_ID=
@@ -84,4 +90,89 @@ pub async fn post_message(app: &AppHandle, text: &str) -> Result<bool, String> {
         let body = res.text().await.unwrap_or_default();
         Err(format!("Telegram API error: {body}"))
     }
+}
+
+// ── Incoming commands (long-polling getUpdates) ────────────────────────────
+
+#[derive(Deserialize)]
+struct UpdatesResponse {
+    result: Vec<Update>,
+}
+#[derive(Deserialize)]
+struct Update {
+    update_id: i64,
+    message: Option<IncomingMessage>,
+}
+#[derive(Deserialize)]
+struct IncomingMessage {
+    chat: Chat,
+    text: Option<String>,
+}
+#[derive(Deserialize)]
+struct Chat {
+    id: i64,
+}
+
+fn load_offset(app: &AppHandle) -> i64 {
+    app.path()
+        .app_data_dir()
+        .ok()
+        .and_then(|d| std::fs::read_to_string(d.join(OFFSET_FILE)).ok())
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+fn save_offset(app: &AppHandle, offset: i64) {
+    if let Ok(dir) = app.path().app_data_dir() {
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::write(dir.join(OFFSET_FILE), offset.to_string());
+    }
+}
+
+// One getUpdates round-trip: advances past every update seen (so nothing is
+// re-delivered on the next poll or after a restart) and reports whether the
+// *configured* chat (never a stranger who happens to message the bot) sent
+// a usage-check command. Returns Ok(false) — a quiet no-op, same as
+// post_message — when Telegram isn't configured at all.
+pub async fn poll_usage_command(app: &AppHandle) -> Result<bool, String> {
+    let Some((token, chat_id)) = load_config(app) else {
+        return Ok(false);
+    };
+    let expected_chat_id: i64 = chat_id.parse().unwrap_or(0);
+
+    let offset = load_offset(app);
+    let url = format!("https://api.telegram.org/bot{token}/getUpdates");
+    let client = reqwest::Client::new();
+    let res = client
+        .get(&url)
+        .query(&[("offset", offset), ("timeout", 5)])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        let body = res.text().await.unwrap_or_default();
+        return Err(format!("Telegram API error: {body}"));
+    }
+
+    let parsed: UpdatesResponse = res.json().await.map_err(|e| e.to_string())?;
+
+    let mut triggered = false;
+    let mut next_offset = offset;
+    for update in parsed.result {
+        next_offset = next_offset.max(update.update_id + 1);
+        let Some(msg) = update.message else { continue };
+        if msg.chat.id != expected_chat_id {
+            continue; // ignore anyone other than the configured chat
+        }
+        let text = msg.text.unwrap_or_default().trim().to_lowercase();
+        if text == "/usage" || text == "usage" {
+            triggered = true;
+        }
+    }
+    if next_offset != offset {
+        save_offset(app, next_offset);
+    }
+
+    Ok(triggered)
 }
