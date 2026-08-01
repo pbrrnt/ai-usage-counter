@@ -5,7 +5,7 @@ import { getCurrentWindow, PhysicalPosition, LogicalSize, currentMonitor } from 
 import type { ProviderID, ProviderState, AppState, AntigravityUsage, ProviderUsageResult, ExpandDir, ExpandSetting, HoverMode, Theme } from './types'
 import { ALL_PROVIDERS } from './types'
 import { formatCountdown, formatResetLabel, formatClockTime } from './utils'
-import { checkProviderResets, checkAntigravityResets } from './resetNotify'
+import { checkProviderResets, checkAntigravityResets, sendUsageSummary } from './resetNotify'
 import { isDaytime } from './sunTimes'
 
 const COMPACT_HEIGHT = 44
@@ -733,6 +733,19 @@ export const useStore = create<Store>((set, get) => ({
       setInterval(() => {
         if (get().theme === 'sunset') applyTheme('sunset', get().postalCode)
       }, 60_000)
+
+      // Reverse direction: a /usage message from the configured Telegram
+      // chat replies with current usage for every connected provider.
+      // Reports the in-memory state as-is (already kept fresh by the
+      // regular refresh loop) rather than triggering a fresh fetch.
+      setInterval(async () => {
+        try {
+          const triggered = await invoke<boolean>('poll_telegram_usage_command')
+          if (triggered) sendUsageSummary(get().providers)
+        } catch (e) {
+          console.error('Telegram poll failed:', e)
+        }
+      }, 20_000)
 
       // Refresh auth state when a provider login window closes
       await listen<string>('auth-state-changed', (event) => {

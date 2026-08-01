@@ -378,6 +378,11 @@ async fn send_telegram_message(app: AppHandle, text: String) -> Result<bool, Str
     telegram::post_message(&app, &text).await
 }
 
+#[tauri::command]
+async fn poll_telegram_usage_command(app: AppHandle) -> Result<bool, String> {
+    telegram::poll_usage_command(&app).await
+}
+
 // ── App setup ─────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -467,6 +472,7 @@ pub fn run() {
             get_gemini_usage,
             show_first_launch_tip,
             send_telegram_message,
+            poll_telegram_usage_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
