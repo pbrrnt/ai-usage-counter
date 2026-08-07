@@ -66,9 +66,12 @@ export function sendUsageSummary(providers: Record<ProviderID, ProviderState>) {
     const p = providers[id]
     if (p.authState !== 'signed_in') continue
     const parts: string[] = []
-    if (p.sessionBar) parts.push(`Session ${p.sessionBar.usedText}`)
-    if (p.weeklyBar) parts.push(`Weekly ${p.weeklyBar.usedText}`)
-    for (const lane of p.quotaLanes) parts.push(`${lane.label} ${lane.pct.toFixed(0)}%`)
+    if (p.sessionBar) parts.push(`Session ${p.sessionBar.usedText}${p.sessionBar.resetLabel ? ' · ' + p.sessionBar.resetLabel : ''}`)
+    if (p.weeklyBar) parts.push(`Weekly ${p.weeklyBar.usedText}${p.weeklyBar.resetLabel ? ' · ' + p.weeklyBar.resetLabel : ''}`)
+    for (const lane of p.quotaLanes) {
+      const reset = lane.resetText ? ` · ${lane.resetText}` : ''
+      parts.push(`${lane.label} ${lane.pct.toFixed(0)}%${reset}`)
+    }
     if (parts.length) lines.push(`${PROVIDER_LABELS[id]}: ${parts.join(' · ')}`)
   }
   if (lines.length === 1) lines.push('ยังไม่ได้เชื่อมต่อ provider ไหนเลยครับ')
