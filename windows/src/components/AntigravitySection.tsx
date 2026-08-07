@@ -37,6 +37,7 @@ export function AntigravitySection() {
                 usedText: `${lane.pct.toFixed(0)}%`,
                 limitText: '',
                 resetLabel: lane.resetText || '',
+                resetSecs: lane.resetSecs,
                 isActive: true
               }}
             />

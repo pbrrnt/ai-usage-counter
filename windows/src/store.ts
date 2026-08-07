@@ -181,6 +181,7 @@ function mapProviderUsage(u: ProviderUsageResult): ProviderState {
       usedText: `${u.session_pct.toFixed(1)}%`,
       limitText: '100%',
       resetLabel: u.session_reset_secs != null ? `Resets ${formatClockTime(u.session_reset_secs)} (${formatCountdown(u.session_reset_secs)})` : '',
+      resetSecs: u.session_reset_secs,
       isActive: true,
     } : null,
     weeklyBar: u.weekly_pct != null ? {
@@ -188,6 +189,7 @@ function mapProviderUsage(u: ProviderUsageResult): ProviderState {
       usedText: `${u.weekly_pct.toFixed(1)}%`,
       limitText: '100%',
       resetLabel: u.weekly_reset_secs != null ? formatResetLabel(u.weekly_reset_secs) : '',
+      resetSecs: u.weekly_reset_secs,
       isActive: true,
     } : null,
   }

@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { ProviderID, ProviderState, ProviderUsageResult, AntigravityUsage } from './types'
 import { PROVIDER_LABELS, ALL_PROVIDERS } from './types'
-import { formatCountdown, formatClockTime } from './utils'
+import { formatCountdown, formatClockTime, formatTelegramSessionLine, formatTelegramWeeklyLine } from './utils'
 
 // Percentage-point buffer against float/rounding noise before a drop counts
 // as a real reset (rather than treating any decrease at all as significant).
@@ -59,20 +59,27 @@ export function checkAntigravityResets(usage: AntigravityUsage) {
 
 // Replies to a /usage command from Telegram with current usage for every
 // connected provider — whatever's already in the store, no fresh fetch (the
-// regular refresh loop already keeps this reasonably up to date).
+// regular refresh loop already keeps this reasonably up to date). One line
+// per provider name, then one line per metric underneath it:
+//   Claude
+//   Session : 85.0% - Reset at 19:19 (in 1h 30m)
+//   Weekly : 76.0% - Reset at Fri 3:59PM - 22h 10m
 export function sendUsageSummary(providers: Record<ProviderID, ProviderState>) {
   const lines: string[] = ['📊 สรุปการใช้งาน AI']
   for (const id of ALL_PROVIDERS) {
     const p = providers[id]
     if (p.authState !== 'signed_in') continue
-    const parts: string[] = []
-    if (p.sessionBar) parts.push(`Session ${p.sessionBar.usedText}${p.sessionBar.resetLabel ? ' · ' + p.sessionBar.resetLabel : ''}`)
-    if (p.weeklyBar) parts.push(`Weekly ${p.weeklyBar.usedText}${p.weeklyBar.resetLabel ? ' · ' + p.weeklyBar.resetLabel : ''}`)
+    const rows: string[] = []
+    if (p.sessionBar) rows.push(formatTelegramSessionLine(p.sessionBar.fraction * 100, p.sessionBar.resetSecs))
+    if (p.weeklyBar) rows.push(formatTelegramWeeklyLine(p.weeklyBar.fraction * 100, p.weeklyBar.resetSecs))
     for (const lane of p.quotaLanes) {
-      const reset = lane.resetText ? ` · ${lane.resetText}` : ''
-      parts.push(`${lane.label} ${lane.pct.toFixed(0)}%${reset}`)
+      const reset = lane.resetText ? ` - ${lane.resetText}` : ''
+      rows.push(`${lane.label} : ${lane.pct.toFixed(0)}%${reset}`)
     }
-    if (parts.length) lines.push(`${PROVIDER_LABELS[id]}: ${parts.join(' · ')}`)
+    if (rows.length) {
+      lines.push(PROVIDER_LABELS[id])
+      lines.push(...rows)
+    }
   }
   if (lines.length === 1) lines.push('ยังไม่ได้เชื่อมต่อ provider ไหนเลยครับ')
   notify(lines.join('\n'))

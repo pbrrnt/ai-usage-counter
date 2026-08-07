@@ -37,6 +37,7 @@ export interface UsageBarVM {
   usedText: string
   limitText: string
   resetLabel: string
+  resetSecs: number | null
   isActive: boolean
 }
 

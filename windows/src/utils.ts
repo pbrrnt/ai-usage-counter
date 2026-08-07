@@ -50,16 +50,34 @@ export function formatClockTime(secs: number): string {
   return `${hh}:${mm}`
 }
 
-export function formatResetLabel(secs: number): string {
-  if (secs <= 0) return ''
+// "{day} {HH}:{mm}" 24h, e.g. "Thu 15:59" — for weekly-style resets.
+function formatDayTime(secs: number): string {
   const d = new Date(Date.now() + secs * 1000)
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const day = days[d.getDay()]
-  const h = d.getHours()
-  const ampm = h >= 12 ? 'PM' : 'AM'
-  const h12 = h % 12 || 12
-  const m = d.getMinutes().toString().padStart(2, '0')
-  return `Resets ${day} ${h12}:${m}${ampm} (${formatCountdown(secs)})`
+  const hh = d.getHours().toString().padStart(2, '0')
+  const mm = d.getMinutes().toString().padStart(2, '0')
+  return `${day} ${hh}:${mm}`
+}
+
+export function formatResetLabel(secs: number): string {
+  if (secs <= 0) return ''
+  return `Resets ${formatDayTime(secs)} (${formatCountdown(secs)})`
+}
+
+// Telegram /usage summary lines — same data as the in-app bars, worded to
+// match what was asked for there specifically ("Reset at ..."), kept
+// separate from formatResetLabel so the in-app UI wording doesn't move too.
+export function formatTelegramSessionLine(pct: number, secs: number | null): string {
+  const base = `Session : ${pct.toFixed(1)}%`
+  if (secs == null || secs <= 0) return base
+  return `${base} - Reset at ${formatClockTime(secs)} (in ${formatCountdown(secs)})`
+}
+
+export function formatTelegramWeeklyLine(pct: number, secs: number | null): string {
+  const base = `Weekly : ${pct.toFixed(1)}%`
+  if (secs == null || secs <= 0) return base
+  return `${base} - Reset at ${formatDayTime(secs)} - ${formatCountdown(secs)}`
 }
 
 export function formatTime(date: Date): string {
