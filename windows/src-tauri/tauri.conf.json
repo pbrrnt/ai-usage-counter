@@ -24,7 +24,8 @@
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "shadow": false
+        "shadow": false,
+        "visible": false
       }
     ],
     "security": {
