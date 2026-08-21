@@ -328,8 +328,17 @@ async fn get_gemini_usage(
 
     // Match macOS: try the in-app view first, then fall back to dedicated
     // usage URLs. The SPA may surface the meters on any of these.
+    //
+    // The worker window is long-lived and reused across refreshes (see
+    // ensure_window) — Gemini's page doesn't reliably re-render its own
+    // usage numbers in the background, so re-scraping it without reloading
+    // first just re-reads whatever text was there when it last loaded, even
+    // if real usage has moved on since (this is why numbers used to go
+    // stale until a manual sign-out/sign-in forced a fresh window). Force a
+    // real navigation before every scrape except right after a brand-new
+    // window's initial load, which already just navigated there.
     for (i, url) in gemini_provider::USAGE_URLS.iter().enumerate() {
-        if i > 0 {
+        if i > 0 || !is_new {
             let _ = window.eval(&format!("window.location = '{url}';"));
             tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
         }
