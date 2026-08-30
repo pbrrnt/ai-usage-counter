@@ -7,10 +7,12 @@ import { formatCountdown, formatClockTime, formatTelegramSessionLine, formatTele
 // as a real reset (rather than treating any decrease at all as significant).
 const DROP_THRESHOLD = 1.0
 const IMMINENT_SECS = 30 * 60
+const HIGH_USAGE_PCT = 80
 
 interface Tracked {
   prevPct: number | null
   warned: boolean
+  warnedHigh: boolean
 }
 
 // Module-level, not store state — nothing ever renders this, it's pure
@@ -27,17 +29,23 @@ function checkSignal(key: string, provider: string, signal: string, pct: number 
   const prev = tracking.get(key)
 
   if (!prev || prev.prevPct == null) {
-    tracking.set(key, { prevPct: pct, warned: false })
+    tracking.set(key, { prevPct: pct, warned: false, warnedHigh: pct >= HIGH_USAGE_PCT })
     return
   }
 
   if (pct < prev.prevPct - DROP_THRESHOLD) {
     notify(`✅ ${provider} — ${signal} รีเซ็ตแล้วครับ (ใช้ไป ${pct.toFixed(1)}%)`)
-    tracking.set(key, { prevPct: pct, warned: false })
+    tracking.set(key, { prevPct: pct, warned: false, warnedHigh: false })
     return
   }
 
   prev.prevPct = pct
+
+  if (!prev.warnedHigh && pct >= HIGH_USAGE_PCT) {
+    notify(`⚠️ ${provider} — ${signal} ใช้ไปแล้ว ${HIGH_USAGE_PCT}% ครับ (ใช้ไป ${pct.toFixed(1)}%)`)
+    prev.warnedHigh = true
+  }
+
   if (!prev.warned && resetSecs != null && resetSecs > 0 && resetSecs < IMMINENT_SECS) {
     notify(`⏰ ${provider} — ${signal} ใกล้รีเซ็ตแล้ว อีก ${formatCountdown(resetSecs)} (เวลา ${formatClockTime(resetSecs)} น.)`)
     prev.warned = true
