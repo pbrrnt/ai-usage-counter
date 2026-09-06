@@ -98,10 +98,13 @@ impl ProviderWorker {
             tokio::time::Instant::now() + tokio::time::Duration::from_secs(timeout_secs);
         loop {
             tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-            if let Ok(map) = self.results.try_lock() {
-                if let Some(result) = map.get(&req_id) {
+            if let Ok(mut map) = self.results.try_lock() {
+                // Remove on pickup — otherwise every completed request leaves
+                // its entry in the map forever (unbounded growth over the
+                // app's lifetime, worse for providers that retry per-cycle).
+                if let Some(result) = map.remove(&req_id) {
                     self.is_ready.store(true, Ordering::Relaxed);
-                    return Some(result.clone());
+                    return Some(result);
                 }
             }
             if tokio::time::Instant::now() >= deadline {

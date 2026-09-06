@@ -20,12 +20,19 @@ export function App() {
   const refreshAll = useStore(s => s.refreshAll)
   const initWindow = useStore(s => s.initWindow)
 
+  // Runs once on mount — initWindow() sets up one-shot listeners/intervals
+  // (position restore, hover modes, telegram poll, etc.) that are never torn
+  // down, so it must not re-run when refreshInterval changes below.
   useEffect(() => {
     initWindow()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
     refreshAll()
     const id = setInterval(refreshAll, refreshInterval * 1000)
     return () => clearInterval(id)
-  }, [initWindow, refreshAll, refreshInterval])
+  }, [refreshAll, refreshInterval])
 
   const hasAntigravity = visibleProviders.includes('antigravity')
   const leftProviders = visibleProviders.filter(id => id !== 'antigravity')

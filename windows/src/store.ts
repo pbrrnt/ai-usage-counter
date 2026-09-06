@@ -5,7 +5,7 @@ import { getCurrentWindow, PhysicalPosition, LogicalSize, currentMonitor } from 
 import type { ProviderID, ProviderState, AppState, AntigravityUsage, ProviderUsageResult, ExpandDir, ExpandSetting, HoverMode, Theme } from './types'
 import { ALL_PROVIDERS } from './types'
 import { formatCountdown, formatResetLabel, formatClockTime } from './utils'
-import { checkProviderResets, checkAntigravityResets, sendUsageSummary } from './resetNotify'
+import { checkProviderResets, checkAntigravityResets, clearProviderTracking, sendUsageSummary } from './resetNotify'
 import { isDaytime } from './sunTimes'
 
 const COMPACT_HEIGHT = 44
@@ -88,8 +88,6 @@ function anchoredPos(
 interface Store extends AppState {
   showSettings: boolean
   visibleProviders: ProviderID[]
-  sessionTokenLimit: number
-  weeklyTokenLimit: number
   refreshInterval: number
   autoDim: boolean
   petIcon: string
@@ -117,8 +115,6 @@ interface Store extends AppState {
 
   setVisibleProviders: (ids: ProviderID[]) => void
   toggleProviderVisible: (id: ProviderID) => void
-  setSessionTokenLimit: (v: number) => void
-  setWeeklyTokenLimit: (v: number) => void
   setRefreshInterval: (v: number) => void
   setPetIcon: (v: string) => void
   cycleExpandDirection: () => void
@@ -242,8 +238,6 @@ export const useStore = create<Store>((set, get) => ({
       return ALL_PROVIDERS
     }
   })(),
-  sessionTokenLimit: Number(localStorage.getItem('sessionTokenLimit')) || 0,
-  weeklyTokenLimit: Number(localStorage.getItem('weeklyTokenLimit')) || 0,
   refreshInterval: Number(localStorage.getItem('refreshInterval')) || 60,
   // Off by default — user opts in by setting an emoji in Settings.
   petIcon: localStorage.getItem('petIcon') ?? '',
@@ -275,6 +269,7 @@ export const useStore = create<Store>((set, get) => ({
 
   signOutProvider: async (provider: ProviderID) => {
     await invoke('sign_out_provider', { provider })
+    clearProviderTracking(provider)
     set(state => ({
       providers: {
         ...state.providers,
@@ -410,14 +405,6 @@ export const useStore = create<Store>((set, get) => ({
       set({ visibleProviders: next })
       localStorage.setItem('visibleProviders', JSON.stringify(next))
     }
-  },
-  setSessionTokenLimit: (v) => {
-    set({ sessionTokenLimit: v })
-    localStorage.setItem('sessionTokenLimit', String(v))
-  },
-  setWeeklyTokenLimit: (v) => {
-    set({ weeklyTokenLimit: v })
-    localStorage.setItem('weeklyTokenLimit', String(v))
   },
   setRefreshInterval: (v) => {
     const valid = Math.max(30, v)

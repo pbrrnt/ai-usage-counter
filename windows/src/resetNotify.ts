@@ -15,10 +15,33 @@ interface Tracked {
   warnedHigh: boolean
 }
 
+const STORAGE_KEY = 'resetTracking'
+
+// Persisted so a restart (app relaunch, not just window hide/show) doesn't
+// lose the prevPct baseline — otherwise a reset that happens while the app
+// is closed just gets silently absorbed as a new baseline on the next poll,
+// with no notification. Same localStorage approach as the provider cache in
+// store.ts.
+function loadTracking(): Map<string, Tracked> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return new Map()
+    return new Map(Object.entries(JSON.parse(raw)))
+  } catch {
+    return new Map()
+  }
+}
+
+function saveTracking() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(tracking)))
+  } catch {}
+}
+
 // Module-level, not store state — nothing ever renders this, it's pure
 // bookkeeping for refreshAll() to consult on each poll (mirrors how
 // initWindow() keeps its own timers as plain closure variables).
-const tracking = new Map<string, Tracked>()
+const tracking = loadTracking()
 
 function notify(text: string) {
   invoke('send_telegram_message', { text }).catch(e => console.error('Telegram notify failed:', e))
@@ -30,12 +53,14 @@ function checkSignal(key: string, provider: string, signal: string, pct: number 
 
   if (!prev || prev.prevPct == null) {
     tracking.set(key, { prevPct: pct, warned: false, warnedHigh: pct >= HIGH_USAGE_PCT })
+    saveTracking()
     return
   }
 
   if (pct < prev.prevPct - DROP_THRESHOLD) {
     notify(`✅ ${provider} — ${signal} รีเซ็ตแล้วครับ (ใช้ไป ${pct.toFixed(1)}%)`)
     tracking.set(key, { prevPct: pct, warned: false, warnedHigh: false })
+    saveTracking()
     return
   }
 
@@ -50,6 +75,21 @@ function checkSignal(key: string, provider: string, signal: string, pct: number 
     notify(`⏰ ${provider} — ${signal} ใกล้รีเซ็ตแล้ว อีก ${formatCountdown(resetSecs)} (เวลา ${formatClockTime(resetSecs)} น.)`)
     prev.warned = true
   }
+
+  saveTracking()
+}
+
+// Drop this provider's baseline on sign-out — otherwise re-signing in (a
+// different account, or the old logout/login workaround for stale Gemini
+// data) compares fresh usage against a stale pre-signout baseline, which can
+// fire a false "reset" notification or suppress a real 80% warning because
+// warnedHigh was already set from before.
+export function clearProviderTracking(providerId: ProviderID) {
+  const prefix = `${providerId}:`
+  for (const key of tracking.keys()) {
+    if (key.startsWith(prefix)) tracking.delete(key)
+  }
+  saveTracking()
 }
 
 export function checkProviderResets(providerId: ProviderID, result: ProviderUsageResult) {

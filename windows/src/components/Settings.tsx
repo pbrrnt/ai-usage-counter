@@ -43,11 +43,7 @@ export function Settings() {
   const setShowSettings = useStore(s => s.setShowSettings)
   const visibleProviders = useStore(s => s.visibleProviders)
   const toggleProviderVisible = useStore(s => s.toggleProviderVisible)
-  const sessionTokenLimit = useStore(s => s.sessionTokenLimit)
-  const weeklyTokenLimit = useStore(s => s.weeklyTokenLimit)
   const refreshInterval = useStore(s => s.refreshInterval)
-  const setSessionTokenLimit = useStore(s => s.setSessionTokenLimit)
-  const setWeeklyTokenLimit = useStore(s => s.setWeeklyTokenLimit)
   const setRefreshInterval = useStore(s => s.setRefreshInterval)
   const petIcon = useStore(s => s.petIcon)
   const setPetIcon = useStore(s => s.setPetIcon)
@@ -110,34 +106,6 @@ export function Settings() {
                   </label>
                 </div>
               ))}
-            </div>
-          </Section>
-
-          <div className="divider" />
-
-          {/* Token Limits */}
-          <Section id="tokens" title="Claude Token Limits" defaultOpen={false}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div className="setting-row">
-                <div className="setting-label" style={{ fontSize: 11 }}>Session Limit</div>
-                <input
-                  type="number"
-                  value={sessionTokenLimit || ''}
-                  onChange={e => setSessionTokenLimit(Number(e.target.value))}
-                  placeholder="0 = auto"
-                  style={{ background: 'var(--surface-input)', color: 'var(--text)', border: 'none', borderRadius: 4, padding: '2px 6px', width: 90, fontSize: 11, textAlign: 'right' }}
-                />
-              </div>
-              <div className="setting-row">
-                <div className="setting-label" style={{ fontSize: 11 }}>Weekly Limit</div>
-                <input
-                  type="number"
-                  value={weeklyTokenLimit || ''}
-                  onChange={e => setWeeklyTokenLimit(Number(e.target.value))}
-                  placeholder="0 = auto"
-                  style={{ background: 'var(--surface-input)', color: 'var(--text)', border: 'none', borderRadius: 4, padding: '2px 6px', width: 90, fontSize: 11, textAlign: 'right' }}
-                />
-              </div>
             </div>
           </Section>
 

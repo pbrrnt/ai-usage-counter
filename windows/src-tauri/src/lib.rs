@@ -32,24 +32,6 @@ fn update_tray_title(app: AppHandle, title: String) {
     }
 }
 
-#[tauri::command]
-fn save_window_position(app: AppHandle, x: i32, y: i32) {
-    if let Ok(data_dir) = app.path().app_data_dir() {
-        let _ = std::fs::create_dir_all(&data_dir);
-        let _ = std::fs::write(
-            data_dir.join("window_position.json"),
-            format!(r#"{{"x":{},"y":{}}}"#, x, y),
-        );
-    }
-}
-
-#[tauri::command]
-fn get_saved_position(app: AppHandle) -> Option<serde_json::Value> {
-    let data_dir = app.path().app_data_dir().ok()?;
-    let content = std::fs::read_to_string(data_dir.join("window_position.json")).ok()?;
-    serde_json::from_str(&content).ok()
-}
-
 // ── Auth state ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -447,20 +429,6 @@ pub fn run() {
             tray::setup(app)?;
             telegram::ensure_config_template(app.handle());
 
-            if let Some(win) = app.get_webview_window("main") {
-                if let Ok(data_dir) = app.path().app_data_dir() {
-                    if let Ok(content) =
-                        std::fs::read_to_string(data_dir.join("window_position.json"))
-                    {
-                        if let Ok(pos) = serde_json::from_str::<serde_json::Value>(&content) {
-                            let x = pos["x"].as_i64().unwrap_or(100) as i32;
-                            let y = pos["y"].as_i64().unwrap_or(100) as i32;
-                            let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
-                        }
-                    }
-                }
-            }
-
             app.handle()
                 .global_shortcut()
                 .register(toggle_shortcut)
@@ -471,8 +439,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_antigravity_usage,
             update_tray_title,
-            save_window_position,
-            get_saved_position,
             get_provider_auth_state,
             open_login_window,
             sign_out_provider,
