@@ -4,6 +4,40 @@ use tauri::{AppHandle, Manager};
 
 const CONFIG_FILE: &str = "telegram_config.txt";
 const OFFSET_FILE: &str = "telegram_offset.txt";
+const LOG_FILE: &str = "telegram_log.txt";
+const LOG_MAX_LINES: usize = 500;
+const LOG_TRIM_TO: usize = 300;
+
+// Every send attempt (success or failure) gets one line here, so a
+// silently-swallowed notification (e.g. an off-schedule reset that never
+// reached Telegram) can be checked after the fact instead of only living in
+// devtools console output nobody sees on a hidden background app.
+fn log_line(app: &AppHandle, line: &str) {
+    let Ok(dir) = app.path().app_data_dir() else { return };
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join(LOG_FILE);
+
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+    let entry = format!("[{now}] {line}\n");
+
+    if let Ok(existing) = std::fs::read_to_string(&path) {
+        let count = existing.lines().count();
+        if count >= LOG_MAX_LINES {
+            let trimmed: String = existing
+                .lines()
+                .skip(count - LOG_TRIM_TO)
+                .collect::<Vec<_>>()
+                .join("\n");
+            let _ = std::fs::write(&path, trimmed + "\n" + &entry);
+            return;
+        }
+    }
+
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = f.write_all(entry.as_bytes());
+    }
+}
 
 const TEMPLATE: &str = r#"# AI Usage Counter — Telegram notifications
 #
@@ -77,17 +111,26 @@ pub async fn post_message(app: &AppHandle, text: &str) -> Result<bool, String> {
 
     let url = format!("https://api.telegram.org/bot{token}/sendMessage");
     let client = reqwest::Client::new();
-    let res = client
+    let sent = client
         .post(&url)
         .json(&serde_json::json!({ "chat_id": chat_id_value, "text": text }))
         .send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await;
+
+    let res = match sent {
+        Ok(r) => r,
+        Err(e) => {
+            log_line(app, &format!("FAILED (network: {e}): {text}"));
+            return Err(e.to_string());
+        }
+    };
 
     if res.status().is_success() {
+        log_line(app, &format!("SENT: {text}"));
         Ok(true)
     } else {
         let body = res.text().await.unwrap_or_default();
+        log_line(app, &format!("FAILED ({body}): {text}"));
         Err(format!("Telegram API error: {body}"))
     }
 }
