@@ -109,12 +109,12 @@ fn parse_window(d: &serde_json::Value) -> (Option<f64>, Option<f64>) {
     (provider_pct(d.get("utilization")), reset_secs(d.get("resets_at")))
 }
 
-// `utilization` is always a 0..1 ratio, so any value <= 1 (including exactly
-// 1.0 — full usage — which used to slip through as "1%" since it has no
-// fractional part) gets scaled up to a percent.
+// claude.ai reports `utilization` as a 0–100 percent (e.g. 85.0), but the
+// macOS original also accepts a 0..1 ratio — only a non-whole value <= 1 is
+// treated as one, so a whole 1.0 stays "1%" rather than becoming 100%.
 fn provider_pct(v: Option<&serde_json::Value>) -> Option<f64> {
     let n = provider_num(v)?;
-    if n <= 1.0 {
+    if n <= 1.0 && n.fract() != 0.0 {
         Some(n * 100.0)
     } else {
         Some(n)

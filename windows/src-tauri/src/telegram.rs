@@ -5,8 +5,11 @@ use tauri::{AppHandle, Manager};
 const CONFIG_FILE: &str = "telegram_config.txt";
 const OFFSET_FILE: &str = "telegram_offset.txt";
 const LOG_FILE: &str = "telegram_log.txt";
-const LOG_MAX_LINES: usize = 500;
-const LOG_TRIM_TO: usize = 300;
+const LOG_MAX_BYTES: u64 = 128 * 1024;
+
+// Serializes log writes — two alerts in the same refresh cycle send at once,
+// and the trim step's rewrite would otherwise clobber a concurrent append.
+static LOG_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 // Every send attempt (success or failure) gets one line here, so a
 // silently-swallowed notification (e.g. an off-schedule reset that never
@@ -17,18 +20,20 @@ fn log_line(app: &AppHandle, line: &str) {
     let _ = std::fs::create_dir_all(&dir);
     let path = dir.join(LOG_FILE);
 
+    // Multi-line messages (the /usage summary) stay one entry per line, so
+    // trimming at line boundaries never splits an entry.
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
-    let entry = format!("[{now}] {line}\n");
+    let entry = format!("[{now}] {}\n", line.replace('\n', " | "));
 
-    if let Ok(existing) = std::fs::read_to_string(&path) {
-        let count = existing.lines().count();
-        if count >= LOG_MAX_LINES {
-            let trimmed: String = existing
-                .lines()
-                .skip(count - LOG_TRIM_TO)
-                .collect::<Vec<_>>()
-                .join("\n");
-            let _ = std::fs::write(&path, trimmed + "\n" + &entry);
+    let _guard = LOG_LOCK.lock();
+
+    // Past the cap, keep the newer half — only then is the file read at all.
+    let too_big = std::fs::metadata(&path).map_or(false, |m| m.len() > LOG_MAX_BYTES);
+    if too_big {
+        if let Ok(existing) = std::fs::read_to_string(&path) {
+            let lines: Vec<&str> = existing.lines().collect();
+            let kept = lines[lines.len() / 2..].join("\n");
+            let _ = std::fs::write(&path, kept + "\n" + &entry);
             return;
         }
     }
@@ -82,10 +87,13 @@ fn load_config(app: &AppHandle) -> Option<(String, String)> {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if let Some(v) = line.strip_prefix("BOT_TOKEN=") {
-            token = v.trim().to_string();
-        } else if let Some(v) = line.strip_prefix("CHAT_ID=") {
-            chat_id = v.trim().to_string();
+        // split_once + trim so "BOT_TOKEN = 123:abc" works too — otherwise a
+        // stray space silently turns notifications off with nothing logged.
+        let Some((key, value)) = line.split_once('=') else { continue };
+        match key.trim() {
+            "BOT_TOKEN" => token = value.trim().to_string(),
+            "CHAT_ID" => chat_id = value.trim().to_string(),
+            _ => {}
         }
     }
 
@@ -120,6 +128,8 @@ pub async fn post_message(app: &AppHandle, text: &str) -> Result<bool, String> {
     let res = match sent {
         Ok(r) => r,
         Err(e) => {
+            // The request URL embeds the bot token — keep it out of the log.
+            let e = e.without_url();
             log_line(app, &format!("FAILED (network: {e}): {text}"));
             return Err(e.to_string());
         }

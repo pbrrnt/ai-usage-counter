@@ -4,11 +4,18 @@ import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow, PhysicalPosition, LogicalSize, currentMonitor } from '@tauri-apps/api/window'
 import type { ProviderID, ProviderState, AppState, AntigravityUsage, ProviderUsageResult, ExpandDir, ExpandSetting, HoverMode, Theme } from './types'
 import { ALL_PROVIDERS } from './types'
-import { formatCountdown, formatResetLabel, formatClockTime } from './utils'
-import { checkProviderResets, checkAntigravityResets, clearProviderTracking, sendUsageSummary } from './resetNotify'
+import { formatCountdown, formatResetLabel, formatClockTime, loadJSON, saveJSON } from './utils'
+import { checkProviderResets, checkAntigravityResets, clearProviderTracking, saveTracking, sendUsageSummary } from './resetNotify'
 import { isDaytime } from './sunTimes'
 
 const COMPACT_HEIGHT = 44
+
+let refreshInFlight = false
+let refreshQueued = false
+// initWindow registers listeners/intervals it never tears down; React
+// StrictMode mounts twice in dev, so guard here rather than relying on
+// the caller's effect running once.
+let windowInitialized = false
 
 // The full size the overlay expands to (validated saved size, or layout default).
 function targetFullSize(twoCol: boolean): { w: number; h: number } {
@@ -138,24 +145,17 @@ const PROVIDER_CACHE_KEY = 'providerCache'
 // as fresh data lands, same as loadProviderAuthStates() already does for
 // authState.
 function loadProviderCache(): Record<ProviderID, ProviderState> | null {
-  try {
-    const raw = localStorage.getItem(PROVIDER_CACHE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Record<ProviderID, ProviderState>
-    for (const id of ALL_PROVIDERS) {
-      const p = parsed[id]
-      if (p?.fetchedAt) p.fetchedAt = new Date(p.fetchedAt)
-    }
-    return parsed
-  } catch {
-    return null
+  const parsed = loadJSON<Record<ProviderID, ProviderState>>(PROVIDER_CACHE_KEY)
+  if (!parsed) return null
+  for (const id of ALL_PROVIDERS) {
+    const p = parsed[id]
+    if (p?.fetchedAt) p.fetchedAt = new Date(p.fetchedAt)
   }
+  return parsed
 }
 
 function saveProviderCache(providers: Record<ProviderID, ProviderState>) {
-  try {
-    localStorage.setItem(PROVIDER_CACHE_KEY, JSON.stringify(providers))
-  } catch {}
+  saveJSON(PROVIDER_CACHE_KEY, providers)
 }
 
 function mapProviderUsage(u: ProviderUsageResult): ProviderState {
@@ -279,53 +279,33 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   refreshAll: async () => {
+    // One cycle at a time. Overlapping cycles drive the same hidden worker
+    // window from two places (a Gemini cycle can outlast the refresh
+    // interval) and can land results out of order, which looks like a reset.
+    // A request made mid-cycle (manual ↻, a fresh login) runs right after.
+    if (refreshInFlight) {
+      refreshQueued = true
+      return
+    }
+    refreshInFlight = true
     set({ isLoading: true })
 
     // Each provider's fetch is independent — run them concurrently so total
     // wait is the slowest single provider, not the sum of all of them (each
     // one spins up a real hidden webview against the real site, tens of
     // seconds is normal per provider, and that used to stack up serially).
-    const fetchClaude = async () => {
-      const claudeAuth = get().providers.claude.authState
-      if (claudeAuth !== 'signed_in' && claudeAuth !== 'expired') return
+    const fetchProvider = async (id: 'claude' | 'codex' | 'gemini') => {
+      const auth = get().providers[id].authState
+      if (auth !== 'signed_in' && auth !== 'expired') return
       try {
-        const result = await invoke<ProviderUsageResult | null>('get_claude_usage')
-        if (result) {
-          set(state => ({ providers: { ...state.providers, claude: mapProviderUsage(result) } }))
-          checkProviderResets('claude', result)
-        }
+        const result = await invoke<ProviderUsageResult | null>(`get_${id}_usage`)
+        // Signed out while this was in flight — drop the stale result rather
+        // than re-creating the tracking baseline sign-out just cleared.
+        if (!result || get().providers[id].authState === 'signed_out') return
+        set(state => ({ providers: { ...state.providers, [id]: mapProviderUsage(result) } }))
+        checkProviderResets(id, result)
       } catch (e) {
-        console.error('Claude usage error:', e)
-      }
-    }
-
-    const fetchCodex = async () => {
-      const codexAuth = get().providers.codex.authState
-      if (codexAuth !== 'signed_in' && codexAuth !== 'expired') return
-      try {
-        const result = await invoke<ProviderUsageResult | null>('get_codex_usage')
-        if (result) {
-          const mapped = mapProviderUsage(result)
-          set(state => ({ providers: { ...state.providers, codex: mapped } }))
-          checkProviderResets('codex', result)
-        }
-      } catch (e) {
-        console.error('Codex usage error:', e)
-      }
-    }
-
-    const fetchGemini = async () => {
-      const geminiAuth = get().providers.gemini.authState
-      if (geminiAuth !== 'signed_in' && geminiAuth !== 'expired') return
-      try {
-        const result = await invoke<ProviderUsageResult | null>('get_gemini_usage')
-        if (result) {
-          const mapped = mapProviderUsage(result)
-          set(state => ({ providers: { ...state.providers, gemini: mapped } }))
-          checkProviderResets('gemini', result)
-        }
-      } catch (e) {
-        console.error('Gemini usage error:', e)
+        console.error(`${id} usage error:`, e)
       }
     }
 
@@ -370,20 +350,27 @@ export const useStore = create<Store>((set, get) => ({
       }
     }
 
-    await Promise.allSettled([fetchClaude(), fetchCodex(), fetchGemini(), fetchAntigravity()])
+    await Promise.allSettled([fetchProvider('claude'), fetchProvider('codex'), fetchProvider('gemini'), fetchAntigravity()])
 
     set({ isLoading: false })
     saveProviderCache(get().providers)
+    saveTracking()
 
     // Update tray title
     const state = get()
     const provider = state.providers[state.menubarSource]
-    const fraction = provider.sessionBar?.fraction ?? 0
+    const fraction = provider?.sessionBar?.fraction ?? 0
     const pct = Math.round(fraction * 100)
     try {
       await invoke('update_tray_title', { title: `AI Usage — ${pct}%` })
     } catch (e) {
       // ignore
+    }
+
+    refreshInFlight = false
+    if (refreshQueued) {
+      refreshQueued = false
+      get().refreshAll()
     }
   },
 
@@ -549,6 +536,8 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   initWindow: async () => {
+    if (windowInitialized) return
+    windowInitialized = true
     // Load Codex/Gemini auth states from disk before showing UI
     await useStore.getState().loadProviderAuthStates()
 
@@ -739,6 +728,10 @@ export const useStore = create<Store>((set, get) => ({
       // Refresh auth state when a provider login window closes
       await listen<string>('auth-state-changed', (event) => {
         const provider = event.payload as ProviderID
+        // A login (including Re-sign in from "expired", which never goes
+        // through signOutProvider) may be a different account — start its
+        // tracking fresh rather than comparing against the old baseline.
+        clearProviderTracking(provider)
         set(state => ({
           providers: {
             ...state.providers,

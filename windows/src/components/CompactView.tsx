@@ -1,6 +1,6 @@
 import { useStore } from '../store'
 import { PROVIDER_ICONS, PROVIDER_LABELS, EXPAND_DIR_ARROW, EXPAND_DIR_LABEL, type ProviderID, type ProviderState } from '../types'
-import { startWindowDrag } from '../utils'
+import { startWindowDrag, usageColor } from '../utils'
 
 const TINT: Record<ProviderID, string> = {
   claude: '#ff9f0a',
@@ -51,8 +51,7 @@ export function CompactView() {
   const p = providers[source]
   const { primary, secondary, primaryFrac } = compactPair(p)
   const tint = TINT[source]
-  const primaryColor =
-    primaryFrac >= 1 ? '#ff3b30' : primaryFrac >= 0.9 ? '#ff9f0a' : tint
+  const primaryColor = usageColor(primaryFrac)
 
   // Click the provider chip → cycle to the next visible provider.
   const cycleProvider = () => {

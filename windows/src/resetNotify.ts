@@ -1,18 +1,30 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { ProviderID, ProviderState, ProviderUsageResult, AntigravityUsage } from './types'
 import { PROVIDER_LABELS, ALL_PROVIDERS } from './types'
-import { formatCountdown, formatClockTime, formatTelegramSessionLine, formatTelegramWeeklyLine } from './utils'
+import { formatCountdown, formatClockTime, formatTelegramSessionLine, formatTelegramWeeklyLine, loadJSON, saveJSON } from './utils'
 
 // Percentage-point buffer against float/rounding noise before a drop counts
 // as a real reset (rather than treating any decrease at all as significant).
 const DROP_THRESHOLD = 1.0
 const IMMINENT_SECS = 30 * 60
 const HIGH_USAGE_PCT = 80
+// A reset time moving later by more than this means a new window started
+// (absorbs the few seconds of drift from countdown-based reset fields).
+const RESET_MOVED_MS = 10 * 60 * 1000
 
 interface Tracked {
   prevPct: number | null
   warned: boolean
   warnedHigh: boolean
+  // Absolute reset time (epoch ms) of the window prevPct belongs to. Lets a
+  // reset be detected even with no visible drop — e.g. it happened while the
+  // app was closed and usage has since climbed past the old value elsewhere.
+  resetAt?: number | null
+  // Signals with no reset time (scraped Gemini/Codex pages) need a drop to
+  // show up on two polls in a row before it counts — one half-loaded page
+  // that misreads "85% left" as 15% used would otherwise announce a fake
+  // reset and re-arm the 80% warning.
+  dropSeen?: boolean
 }
 
 const STORAGE_KEY = 'resetTracking'
@@ -23,19 +35,12 @@ const STORAGE_KEY = 'resetTracking'
 // with no notification. Same localStorage approach as the provider cache in
 // store.ts.
 function loadTracking(): Map<string, Tracked> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return new Map()
-    return new Map(Object.entries(JSON.parse(raw)))
-  } catch {
-    return new Map()
-  }
+  return new Map(Object.entries(loadJSON<Record<string, Tracked>>(STORAGE_KEY) ?? {}))
 }
 
-function saveTracking() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(tracking)))
-  } catch {}
+// Called once per refresh cycle (and on sign-out) rather than per signal.
+export function saveTracking() {
+  saveJSON(STORAGE_KEY, Object.fromEntries(tracking))
 }
 
 // Module-level, not store state — nothing ever renders this, it's pure
@@ -43,40 +48,71 @@ function saveTracking() {
 // initWindow() keeps its own timers as plain closure variables).
 const tracking = loadTracking()
 
-function notify(text: string) {
-  invoke('send_telegram_message', { text }).catch(e => console.error('Telegram notify failed:', e))
+// Resolves true only when Telegram actually accepted the message.
+function notify(text: string): Promise<boolean> {
+  return invoke<boolean>('send_telegram_message', { text }).catch(e => {
+    console.error('Telegram notify failed:', e)
+    return false
+  })
+}
+
+// Sets the flag up front (so an in-flight send isn't duplicated by the next
+// poll), then clears it again if the send didn't go through — offline, or
+// Telegram not configured yet — so a later poll retries instead of the
+// warning being lost for the rest of the cycle.
+function warnOnce(entry: Tracked, flag: 'warned' | 'warnedHigh', text: string) {
+  entry[flag] = true
+  notify(text).then(ok => {
+    if (!ok) {
+      entry[flag] = false
+      saveTracking()
+    }
+  })
 }
 
 function checkSignal(key: string, provider: string, signal: string, pct: number | null, resetSecs: number | null) {
   if (pct == null) return
-  const prev = tracking.get(key)
+  const now = Date.now()
+  const resetAt = resetSecs != null && resetSecs > 0 ? now + resetSecs * 1000 : null
+  let entry = tracking.get(key)
 
-  if (!prev || prev.prevPct == null) {
-    tracking.set(key, { prevPct: pct, warned: false, warnedHigh: pct >= HIGH_USAGE_PCT })
-    saveTracking()
-    return
+  if (!entry || entry.prevPct == null) {
+    // First sighting (first launch, a new lane, or after sign-out/re-login):
+    // nothing to compare for a reset, but still run the warnings below — this
+    // is exactly when the user hasn't been warned about current usage yet.
+    entry = { prevPct: pct, warned: false, warnedHigh: false, resetAt }
+    tracking.set(key, entry)
+  } else {
+    const dropped = pct < entry.prevPct - DROP_THRESHOLD
+    const prevResetAt = entry.resetAt ?? null
+    // Only a newly reported, later reset time counts — not merely passing the
+    // old one, since the API can lag a few seconds past the reset and would
+    // otherwise get a "reset" announced now and again when the drop lands.
+    const windowRolled = prevResetAt != null && resetAt != null && resetAt > prevResetAt + RESET_MOVED_MS
+    const hasResetTime = prevResetAt != null || resetAt != null
+    if (dropped && !windowRolled && !hasResetTime && !entry.dropSeen) {
+      // First low reading — hold the old baseline and wait for the next poll.
+      entry.dropSeen = true
+      return
+    }
+    entry.dropSeen = false
+    if (dropped || windowRolled) {
+      notify(`✅ ${provider} — ${signal} รีเซ็ตแล้วครับ (ใช้ไป ${pct.toFixed(1)}%)`)
+      entry = { prevPct: pct, warned: false, warnedHigh: false, resetAt }
+      tracking.set(key, entry)
+      return
+    }
+    entry.prevPct = pct
+    if (resetAt != null) entry.resetAt = resetAt
   }
 
-  if (pct < prev.prevPct - DROP_THRESHOLD) {
-    notify(`✅ ${provider} — ${signal} รีเซ็ตแล้วครับ (ใช้ไป ${pct.toFixed(1)}%)`)
-    tracking.set(key, { prevPct: pct, warned: false, warnedHigh: false })
-    saveTracking()
-    return
+  if (!entry.warnedHigh && pct >= HIGH_USAGE_PCT) {
+    warnOnce(entry, 'warnedHigh', `⚠️ ${provider} — ${signal} ใช้ไปแล้ว ${HIGH_USAGE_PCT}% ครับ (ใช้ไป ${pct.toFixed(1)}%)`)
   }
 
-  prev.prevPct = pct
-
-  if (!prev.warnedHigh && pct >= HIGH_USAGE_PCT) {
-    notify(`⚠️ ${provider} — ${signal} ใช้ไปแล้ว ${HIGH_USAGE_PCT}% ครับ (ใช้ไป ${pct.toFixed(1)}%)`)
-    prev.warnedHigh = true
+  if (!entry.warned && resetSecs != null && resetSecs > 0 && resetSecs < IMMINENT_SECS) {
+    warnOnce(entry, 'warned', `⏰ ${provider} — ${signal} ใกล้รีเซ็ตแล้ว อีก ${formatCountdown(resetSecs)} (เวลา ${formatClockTime(resetSecs)} น.)`)
   }
-
-  if (!prev.warned && resetSecs != null && resetSecs > 0 && resetSecs < IMMINENT_SECS) {
-    notify(`⏰ ${provider} — ${signal} ใกล้รีเซ็ตแล้ว อีก ${formatCountdown(resetSecs)} (เวลา ${formatClockTime(resetSecs)} น.)`)
-    prev.warned = true
-  }
-
-  saveTracking()
 }
 
 // Drop this provider's baseline on sign-out — otherwise re-signing in (a
@@ -96,6 +132,10 @@ export function checkProviderResets(providerId: ProviderID, result: ProviderUsag
   const provider = PROVIDER_LABELS[providerId]
   checkSignal(`${providerId}:session`, provider, 'Session limit', result.session_pct, result.session_reset_secs)
   checkSignal(`${providerId}:weekly`, provider, 'Weekly limit', result.weekly_pct, result.weekly_reset_secs)
+  // Per-model lanes (Claude's Fable 5, Gemini's model quotas)
+  for (const lane of result.quota_lanes) {
+    checkSignal(`${providerId}:lane:${lane.id}`, provider, lane.label, lane.pct, lane.reset_secs)
+  }
 }
 
 export function checkAntigravityResets(usage: AntigravityUsage) {

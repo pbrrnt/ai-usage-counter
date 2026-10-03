@@ -1,19 +1,11 @@
 import type { UsageBarVM } from '../types'
+import { usageColor } from '../utils'
 
 interface Props {
   label: string
   icon: string
   iconColor: string
   vm: UsageBarVM
-}
-
-// Below 70% just use the provider's own tint (matches CompactView's scheme)
-// so low usage doesn't share a color with the 90%+ near-limit warning.
-function barColor(fraction: number, baseColor: string): string {
-  if (fraction >= 1.0) return '#ff3b30'
-  if (fraction >= 0.9) return '#ff9f0a'
-  if (fraction >= 0.7) return '#ffd60a'
-  return baseColor
 }
 
 function infoText(vm: UsageBarVM): string {
@@ -24,7 +16,7 @@ function infoText(vm: UsageBarVM): string {
 
 export function UsageBar({ label, icon, iconColor, vm }: Props) {
   const pct = vm.fraction * 100
-  const color = barColor(vm.fraction, iconColor)
+  const color = usageColor(vm.fraction)
   const width = `${Math.min(100, Math.max(0, vm.fraction * 100))}%`
 
   return (

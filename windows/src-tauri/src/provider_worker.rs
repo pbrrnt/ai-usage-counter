@@ -88,10 +88,18 @@ impl ProviderWorker {
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
 
-        let req_id = self.req_id.fetch_add(1, Ordering::SeqCst).to_string();
+        let req_num = self.req_id.fetch_add(1, Ordering::SeqCst);
+        let req_id = req_num.to_string();
         let js = js.replace("__REQ_ID__", &req_id);
 
-        self.results.lock().ok()?.remove(&req_id);
+        // Drop anything from older requests — a result that arrived after its
+        // caller already timed out is never picked up, so it would otherwise
+        // sit in the map forever. (Requests per worker don't overlap; the
+        // frontend runs one refresh cycle at a time.)
+        self.results
+            .lock()
+            .ok()?
+            .retain(|k, _| k.parse::<u64>().map_or(false, |n| n >= req_num));
         window.eval(&js).ok()?;
 
         let deadline =

@@ -25,6 +25,33 @@ export function splitEmojis(s: string): string[] {
   return Array.from(s).filter(g => g.trim() !== '')
 }
 
+// localStorage JSON with corrupt/missing data (or storage errors) treated as
+// "nothing saved" — callers fall back to their defaults.
+export function loadJSON<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : null
+  } catch {
+    return null
+  }
+}
+
+export function saveJSON(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {}
+}
+
+// Traffic-light usage color. Deliberately not the provider tint: Claude's tint
+// is the same orange as the 90%+ warning, so low and near-limit usage would
+// look identical.
+export function usageColor(fraction: number): string {
+  if (fraction >= 1.0) return '#ff3b30'
+  if (fraction >= 0.9) return '#ff9f0a'
+  if (fraction >= 0.7) return '#ffd60a'
+  return '#30d158'
+}
+
 export function formatCountdown(secs: number): string {
   const d = Math.floor(secs / 86400)
   const h = Math.floor((secs % 86400) / 3600)
